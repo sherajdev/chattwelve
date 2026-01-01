@@ -1,6 +1,6 @@
 # ChatTwelve Progress Notes
 
-## Current Status: 28/71 features passing (39.4%)
+## Current Status: 31/71 features passing (43.7%)
 
 ## Session: January 2, 2026
 
@@ -72,11 +72,20 @@
 - src/api/routes/chat.py
   - Added SESSION_EXPIRED error handler (returns 401)
 
-6. **Verified MCP Tool Features (#26, #27, #28, #29):**
+6. **Verified MCP Tool Features (#26, #27, #28, #29, #30, #31):**
    - Feature #26: MCP client uses JSON-RPC 2.0 protocol - PASS
    - Feature #27: get_price tool works - PASS
    - Feature #28: get_quote tool works - PASS
    - Feature #29: get_time_series tool works - PASS
+   - Feature #30: convert_currency tool works - PASS
+   - Feature #31: technical_indicator tool works - PASS
+   - Feature #32: list_commodities - SKIPPED (MCP timeout issue)
+
+7. **Verified Cache Feature (#33):**
+   - Feature #33: Cache stores price queries with TTL - PASS
+   - Verified cache entries stored in database
+   - TTL is 45 seconds for price data (within 30-60 range)
+   - Cache key is SHA256 hash of query parameters
 
 ### What should be worked on next:
 - Get next pending feature using feature_get_next tool
