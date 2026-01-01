@@ -35,6 +35,11 @@ async def chat(request: ChatRequest):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=error.model_dump()
                 )
+            elif error.error.code == "SESSION_EXPIRED":
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=error.model_dump()
+                )
             elif error.error.code == "RATE_LIMITED":
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,

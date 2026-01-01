@@ -46,9 +46,19 @@ class ChatService:
         # Log the request
         log_request(session_id, query)
 
-        # Validate session
-        session = await self.session_repo.get(session_id)
+        # Validate session (with expiry check)
+        session = await self.session_repo.get(session_id, check_expiry=True)
         if not session:
+            # Check if session exists but is expired
+            session_raw = await self.session_repo.get(session_id, check_expiry=False)
+            if session_raw and self.session_repo.is_expired(session_raw):
+                return None, ErrorResponse(
+                    answer="Your session has expired. Please create a new session to continue.",
+                    error=ErrorDetail(
+                        code="SESSION_EXPIRED",
+                        message=f"Session {session_id} has expired due to inactivity"
+                    )
+                )
             return None, ErrorResponse(
                 answer="Session not found. Please create a new session.",
                 error=ErrorDetail(

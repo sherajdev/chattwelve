@@ -1,6 +1,6 @@
 # ChatTwelve Progress Notes
 
-## Current Status: 22/71 features passing (31.0%)
+## Current Status: 24/71 features passing (33.8%)
 
 ## Session: January 2, 2026
 
@@ -43,6 +43,34 @@
   - Added List to imports
   - Updated process_chat() to pass context and update it
   - Added _update_session_context() method
+
+4. **Implemented Feature #24: Session stores conversation history**
+   - Already implemented as part of Feature #23
+   - Verified context entries stored in database with query, symbols, intent
+
+5. **Implemented Feature #25: Session timeout is configurable**
+   - Added `is_expired()` method to session_repo.py
+   - Updated `get()` method to check for expiry
+   - Added SESSION_EXPIRED error handling in chat_service.py
+   - Added 401 status response for expired sessions in chat.py
+
+### Additional Test Results (Features #24, #25):
+- Feature #24: Session stores conversation history - PASS
+  - Created session, sent multiple queries
+  - Verified context field in database contains both queries
+
+- Feature #25: Session timeout is configurable - PASS
+  - Created session, verified timestamps
+  - Simulated expired session (last_activity 2 hours ago)
+  - Verified SESSION_EXPIRED error returned with appropriate message
+
+### Files Modified (continued):
+- src/database/session_repo.py
+  - Added `is_expired()` method
+  - Updated `get()` to check for session expiry
+
+- src/api/routes/chat.py
+  - Added SESSION_EXPIRED error handler (returns 401)
 
 ### What should be worked on next:
 - Get next pending feature using feature_get_next tool

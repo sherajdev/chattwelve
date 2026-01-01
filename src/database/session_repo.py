@@ -75,15 +75,16 @@ class SessionRepository:
             metadata=meta
         )
 
-    async def get(self, session_id: str) -> Optional[Session]:
+    async def get(self, session_id: str, check_expiry: bool = True) -> Optional[Session]:
         """
         Get a session by ID.
 
         Args:
             session_id: Session ID to look up
+            check_expiry: If True, returns None for expired sessions
 
         Returns:
-            Session object or None if not found
+            Session object or None if not found or expired (when check_expiry=True)
         """
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
@@ -96,7 +97,7 @@ class SessionRepository:
             if not row:
                 return None
 
-            return Session(
+            session = Session(
                 id=row["id"],
                 created_at=datetime.fromisoformat(row["created_at"]),
                 last_activity=datetime.fromisoformat(row["last_activity"]),
@@ -105,6 +106,27 @@ class SessionRepository:
                 request_window_start=datetime.fromisoformat(row["request_window_start"]),
                 metadata=json.loads(row["metadata"])
             )
+
+            # Check if session is expired
+            if check_expiry and self.is_expired(session):
+                logger.info(f"Session expired: {session_id[:8]}...")
+                return None
+
+            return session
+
+    def is_expired(self, session: Session) -> bool:
+        """
+        Check if a session has expired.
+
+        Args:
+            session: Session object to check
+
+        Returns:
+            True if session is expired, False otherwise
+        """
+        now = datetime.utcnow()
+        timeout = timedelta(minutes=settings.SESSION_TIMEOUT_MINUTES)
+        return (now - session.last_activity) >= timeout
 
     async def update_activity(self, session_id: str) -> bool:
         """
