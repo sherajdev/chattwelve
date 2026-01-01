@@ -1,0 +1,65 @@
+# ChatTwelve Progress Notes
+
+## Current Status: 22/71 features passing (31.0%)
+
+## Session: January 2, 2026
+
+### What was accomplished this session:
+
+1. **Implemented Feature #23: Session context maintained for follow-ups**
+   - Modified `query_processor.py` to accept optional conversation context
+   - Added `_extract_symbols_from_context()` method to detect follow-up queries
+   - Updated `chat_service.py` to pass session context to query processor
+   - Added `_update_session_context()` method to store query info after each successful request
+   - Context is limited to last 10 entries to prevent bloat
+
+2. **Enhanced query processing:**
+   - Added company name to ticker mapping (e.g., "Apple" -> "AAPL")
+   - Added generic "moving average" keyword to trigger SMA indicator
+
+3. **Follow-up detection patterns:**
+   - Detects pronouns: "it", "its", "that", "this"
+   - Detects phrases: "and what about", "how about", "what about", "also", "too", "same stock"
+
+### Test Results:
+- Step 1: Create session - PASS
+- Step 2: Query "What is the price of Apple stock?" - PASS (returns AAPL price)
+- Step 3: Verify AAPL in response - PASS
+- Step 4: Send follow-up "And what about its 50-day moving average?" - PASS
+- Step 5: Verify follow-up uses AAPL from context - PASS (returns SMA(50) for AAPL)
+
+### Regression tests verified:
+- Bitcoin price query - PASS
+- SMA indicator query - PASS (implicit, used during feature testing)
+
+### Files Modified:
+- src/services/query_processor.py
+  - Added STOCK_NAMES mapping
+  - Added "moving average" to INDICATORS
+  - Updated parse() to accept context parameter
+  - Added _extract_symbols_from_context() method
+
+- src/services/chat_service.py
+  - Added List to imports
+  - Updated process_chat() to pass context and update it
+  - Added _update_session_context() method
+
+### What should be worked on next:
+- Get next pending feature using feature_get_next tool
+- Continue implementing features in priority order
+
+### Known Issues:
+- Browser automation (Playwright) not available - Chrome not installed
+- Server running on port 8001 (port 8000 was in use)
+
+### Session Context Data Structure:
+```json
+{
+  "query": "What is the price of Apple stock?",
+  "symbols": ["AAPL"],
+  "intent": "price",
+  "indicator": null,
+  "interval": "1day",
+  "timestamp": "2026-01-01T22:24:23.838168Z"
+}
+```

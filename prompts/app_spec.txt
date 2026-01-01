@@ -1,0 +1,339 @@
+<project_specification>
+  <project_name>ChatTwelve</project_name>
+
+  <overview>
+    A conversational AI-powered backend that accepts natural language questions about market data,
+    communicates with a TwelveData MCP server to fetch real-time financial information, and returns
+    both human-readable responses and structured JSON data. Phase 1 focuses on the backend foundation
+    with a CLI test interface - no frontend UI yet.
+  </overview>
+
+  <phase>1 - Backend Foundation</phase>
+
+  <technology_stack>
+    <backend>
+      <language>Python 3.11+</language>
+      <framework>FastAPI</framework>
+      <ai_framework>Pydantic AI</ai_framework>
+      <database>SQLite (for session/cache storage)</database>
+    </backend>
+    <external_services>
+      <mcp_server>
+        <name>TwelveData MCP Server</name>
+        <url>http://192.168.50.250:3847</url>
+        <endpoints>
+          <endpoint method="GET" path="/health">Health check</endpoint>
+          <endpoint method="POST" path="/mcp">Direct MCP JSON-RPC (requires Accept: application/json, text/event-stream)</endpoint>
+          <endpoint method="GET" path="/sse">Server-Sent Events transport for MCP</endpoint>
+          <endpoint method="POST" path="/messages">Message handler for SSE sessions (requires ?sessionId=)</endpoint>
+        </endpoints>
+      </mcp_server>
+    </external_services>
+    <communication>
+      <api>RESTful with SSE streaming</api>
+      <format>JSON</format>
+    </communication>
+  </technology_stack>
+
+  <mcp_server_tools>
+    <tool name="get_price">
+      <description>Real-time price for any symbol</description>
+      <parameters>symbol (e.g., "XAU/USD", "AAPL", "BTC/USD")</parameters>
+    </tool>
+    <tool name="get_quote">
+      <description>Detailed quote (OHLC, change %, volume, 52-week range)</description>
+      <parameters>symbol</parameters>
+    </tool>
+    <tool name="get_time_series">
+      <description>Historical OHLC candles</description>
+      <parameters>symbol, interval (1min-1month), outputsize (1-5000), start_date, end_date</parameters>
+    </tool>
+    <tool name="get_exchange_rate">
+      <description>Current exchange rate for currency pair</description>
+      <parameters>symbol (e.g., "EUR/USD")</parameters>
+    </tool>
+    <tool name="convert_currency">
+      <description>Convert amount between currencies</description>
+      <parameters>from, to, amount</parameters>
+    </tool>
+    <tool name="list_commodities">
+      <description>List all available commodities</description>
+      <parameters>none</parameters>
+    </tool>
+    <tool name="technical_indicator">
+      <description>Calculate technical indicators</description>
+      <parameters>symbol, indicator, interval, time_period, outputsize</parameters>
+      <supported_indicators>sma, ema, wma, rsi, macd, bbands, stoch, adx, atr, cci, obv, mom, roc, willr</supported_indicators>
+    </tool>
+    <supported_intervals>1min, 5min, 15min, 30min, 45min, 1h, 2h, 4h, 8h, 1day, 1week, 1month</supported_intervals>
+    <supported_symbols>
+      <forex>EUR/USD, GBP/USD, USD/JPY, etc.</forex>
+      <metals>XAU/USD (gold), XAG/USD (silver), XPT/USD (platinum)</metals>
+      <crypto>BTC/USD, ETH/USD, etc.</crypto>
+      <stocks>AAPL, MSFT, GOOGL, etc.</stocks>
+    </supported_symbols>
+  </mcp_server_tools>
+
+  <prerequisites>
+    <environment_setup>
+      <requirement>Python 3.11 or higher</requirement>
+      <requirement>TwelveData MCP Server running at http://192.168.50.250:3847</requirement>
+      <requirement>Virtual environment recommended</requirement>
+    </environment_setup>
+  </prerequisites>
+
+  <feature_count>71</feature_count>
+
+  <core_features>
+    <api_endpoint>
+      - POST /api/chat - Accept natural language question, return AI response with market data
+      - GET /api/health - Health check endpoint
+      - POST /api/session - Create new conversation session
+      - DELETE /api/session/{session_id} - End conversation session
+    </api_endpoint>
+
+    <session_management>
+      - Create new sessions with unique IDs
+      - Maintain conversation context within sessions
+      - Session timeout handling (configurable)
+      - Session cleanup on explicit end
+    </session_management>
+
+    <query_processing>
+      - Parse natural language queries using Pydantic AI
+      - Detect query intent (price, quote, historical, conversion, indicator, comparison)
+      - Extract symbols, time parameters, indicator types from natural language
+      - Handle follow-up questions with conversation context
+      - Generate conversational AI responses
+    </query_processing>
+
+    <mcp_communication>
+      - Connect to TwelveData MCP server via JSON-RPC
+      - Call appropriate MCP tool based on query intent
+      - Handle MCP connection errors gracefully
+      - Handle MCP timeout errors
+      - Handle invalid MCP responses
+      - Parse and transform MCP responses into structured data
+    </mcp_communication>
+
+    <response_formatting>
+      - Include conversational "answer" text
+      - Include "type" field (price, historical, indicator, conversion, comparison, quote)
+      - Include structured "data" object varying by query type
+      - Include ISO 8601 "timestamp"
+      - Include human-readable "formatted_time"
+      - Price response: symbol, price, change_percent
+      - Historical response: symbol, interval, candles array
+      - Indicator response: symbol, indicator, period, values array
+      - Conversion response: from, to, amount, result, rate
+      - Quote response: symbol, open, high, low, close, volume, change_percent, 52_week_high, 52_week_low
+    </response_formatting>
+
+    <error_handling>
+      - Return structured error object with code and message
+      - Return user-friendly error answer text
+      - Handle MCP server unavailable
+      - Handle invalid symbols
+      - Handle unsupported query types
+      - Optionally serve cached data with disclaimer on error
+      - No automatic retry (let client decide)
+    </error_handling>
+
+    <caching>
+      - Cache price queries (30-60 second TTL)
+      - Cache historical queries (longer TTL)
+      - Cache indicator queries (longer TTL)
+      - Check cache before MCP call
+      - Cache invalidation on TTL expiry
+      - Serve stale cache on error with disclaimer
+    </caching>
+
+    <rate_limiting>
+      - Track requests per session
+      - Enforce ~30 requests/minute per session limit
+      - Return 429 status when rate limited
+      - Include rate limit info in error response
+    </rate_limiting>
+
+    <streaming>
+      - Stream AI response via Server-Sent Events
+      - Handle stream interruption gracefully
+      - Assemble final response from stream chunks
+    </streaming>
+
+    <logging>
+      - Log incoming requests (timestamp, session, query)
+      - Log MCP calls (tool, parameters, response time)
+      - Log errors with stack traces
+      - Log response times for performance monitoring
+    </logging>
+
+    <validation>
+      - Reject empty queries
+      - Enforce maximum query length
+      - Sanitize input to prevent injection
+      - Validate session ID format
+    </validation>
+  </core_features>
+
+  <response_schema>
+    <success_response>
+      {
+        "answer": "string - conversational AI response",
+        "type": "price | historical | indicator | conversion | quote | comparison",
+        "data": {
+          "...varies by type..."
+        },
+        "timestamp": "ISO 8601 timestamp",
+        "formatted_time": "Human readable timestamp"
+      }
+    </success_response>
+    <error_response>
+      {
+        "answer": "string - user-friendly error message",
+        "error": {
+          "code": "string - error code",
+          "message": "string - technical error message"
+        },
+        "cached_data": "optional - stale cached data if available"
+      }
+    </error_response>
+  </response_schema>
+
+  <database_schema>
+    <tables>
+      <sessions>
+        - id (TEXT PRIMARY KEY)
+        - created_at (DATETIME)
+        - last_activity (DATETIME)
+        - context (TEXT - JSON serialized conversation context)
+        - request_count (INTEGER - for rate limiting)
+        - request_window_start (DATETIME - for rate limiting)
+      </sessions>
+      <cache>
+        - key (TEXT PRIMARY KEY - hash of query parameters)
+        - query_type (TEXT)
+        - response_data (TEXT - JSON serialized response)
+        - created_at (DATETIME)
+        - ttl_seconds (INTEGER)
+      </cache>
+    </tables>
+  </database_schema>
+
+  <api_endpoints_summary>
+    <chat>
+      - POST /api/chat - Send question, receive AI response with market data
+    </chat>
+    <session>
+      - POST /api/session - Create new conversation session
+      - DELETE /api/session/{session_id} - End session
+    </session>
+    <health>
+      - GET /api/health - Backend health check
+      - GET /api/mcp-health - TwelveData MCP server connectivity check
+    </health>
+  </api_endpoints_summary>
+
+  <implementation_steps>
+    <step number="1">
+      <title>Project Setup</title>
+      <tasks>
+        - Initialize Python project with pyproject.toml or requirements.txt
+        - Set up FastAPI application structure
+        - Configure Pydantic AI
+        - Set up SQLite database connection
+      </tasks>
+    </step>
+    <step number="2">
+      <title>Database Layer</title>
+      <tasks>
+        - Create sessions table
+        - Create cache table
+        - Implement session CRUD operations
+        - Implement cache get/set/invalidate operations
+      </tasks>
+    </step>
+    <step number="3">
+      <title>MCP Client</title>
+      <tasks>
+        - Create MCP client for TwelveData server
+        - Implement connection handling
+        - Implement all 7 tool calls (get_price, get_quote, get_time_series, get_exchange_rate, convert_currency, list_commodities, technical_indicator)
+        - Add error handling for MCP communication
+      </tasks>
+    </step>
+    <step number="4">
+      <title>Query Processing</title>
+      <tasks>
+        - Set up Pydantic AI agent
+        - Implement query intent detection
+        - Implement parameter extraction (symbols, intervals, etc.)
+        - Handle conversation context for follow-ups
+      </tasks>
+    </step>
+    <step number="5">
+      <title>API Endpoints</title>
+      <tasks>
+        - Implement POST /api/chat with streaming
+        - Implement session endpoints
+        - Implement health endpoints
+        - Add input validation middleware
+      </tasks>
+    </step>
+    <step number="6">
+      <title>Response Formatting</title>
+      <tasks>
+        - Implement response schemas for each query type
+        - Format timestamps (ISO and human-readable)
+        - Structure error responses
+      </tasks>
+    </step>
+    <step number="7">
+      <title>Caching & Rate Limiting</title>
+      <tasks>
+        - Implement cache lookup before MCP calls
+        - Implement cache storage after successful MCP calls
+        - Implement rate limiting per session
+        - Add stale cache fallback on errors
+      </tasks>
+    </step>
+    <step number="8">
+      <title>Logging & Polish</title>
+      <tasks>
+        - Set up structured logging
+        - Log requests, MCP calls, errors, timing
+        - Add CLI test interface for terminal testing
+        - Final error handling review
+      </tasks>
+    </step>
+  </implementation_steps>
+
+  <success_criteria>
+    <functionality>
+      - API successfully connects to TwelveData MCP server at http://192.168.50.250:3847/mcp
+      - Can ask questions via terminal/CLI and receive AI responses
+      - All 7 MCP tools are callable through natural language queries
+      - Conversation context maintained within sessions
+    </functionality>
+    <reliability>
+      - Graceful error handling for MCP failures
+      - Cache serves stale data with disclaimer when MCP unavailable
+      - Rate limiting prevents API quota exhaustion
+    </reliability>
+    <observability>
+      - Basic logging captures requests, errors, and MCP calls
+      - Logs are useful for debugging issues
+    </observability>
+  </success_criteria>
+
+  <notes>
+    <phase_2_preview>
+      Phase 2 will add:
+      - Next.js frontend with chat UI
+      - BetterAuth for authentication
+      - Supabase for user storage
+      - Full user account management
+    </phase_2_preview>
+    <target_user>Personal use only (single user)</target_user>
+  </notes>
+</project_specification>

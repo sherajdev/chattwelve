@@ -1,0 +1,32 @@
+# ChatTwelve - Phase 1 Backend Dependencies
+
+# Core Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# AI Framework
+pydantic-ai>=0.0.12
+
+# Database
+aiosqlite>=0.19.0
+
+# HTTP Client for MCP
+httpx>=0.26.0
+
+# SSE Support
+sse-starlette>=1.8.2
+
+# Utilities
+python-dotenv>=1.0.0
+python-multipart>=0.0.6
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.23.0
+httpx>=0.26.0
+
+# Development
+black>=23.0.0
+isort>=5.12.0
