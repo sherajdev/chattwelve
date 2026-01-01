@@ -1,6 +1,6 @@
 # ChatTwelve Progress Notes
 
-## Current Status: 31/71 features passing (43.7%)
+## Current Status: 32/71 features passing (45.1%)
 
 ## Session: January 2, 2026
 
@@ -81,11 +81,13 @@
    - Feature #31: technical_indicator tool works - PASS
    - Feature #32: list_commodities - SKIPPED (MCP timeout issue)
 
-7. **Verified Cache Feature (#33):**
+7. **Verified Cache Features (#33, #34):**
    - Feature #33: Cache stores price queries with TTL - PASS
+   - Feature #34: Cache serves cached responses - PASS
    - Verified cache entries stored in database
    - TTL is 45 seconds for price data (within 30-60 range)
    - Cache key is SHA256 hash of query parameters
+   - Second query served from cache (15ms vs 502ms)
 
 ### What should be worked on next:
 - Get next pending feature using feature_get_next tool
