@@ -1,6 +1,6 @@
 # ChatTwelve Progress Notes
 
-## Current Status: 24/71 features passing (33.8%)
+## Current Status: 28/71 features passing (39.4%)
 
 ## Session: January 2, 2026
 
@@ -71,6 +71,12 @@
 
 - src/api/routes/chat.py
   - Added SESSION_EXPIRED error handler (returns 401)
+
+6. **Verified MCP Tool Features (#26, #27, #28, #29):**
+   - Feature #26: MCP client uses JSON-RPC 2.0 protocol - PASS
+   - Feature #27: get_price tool works - PASS
+   - Feature #28: get_quote tool works - PASS
+   - Feature #29: get_time_series tool works - PASS
 
 ### What should be worked on next:
 - Get next pending feature using feature_get_next tool
