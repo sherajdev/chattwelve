@@ -254,7 +254,19 @@ class QueryProcessor:
         "DAY", "WEEK", "MONTH", "YEAR", "HOUR", "MIN",
         "CAN", "YOU", "TELL", "ABOUT", "THIS", "THAT", "FROM",
         "GOLD", "SILVER", "PLATINUM", "BITCOIN", "ETHEREUM",  # Names (symbols already added)
+        # Common non-financial words that might appear as uppercase
+        "JOKE", "FUNNY", "HELP", "HELLO", "HI", "BYE", "THANKS", "PLEASE",
+        "STOCK", "STOCKS", "MARKET", "TRADING", "TRADE", "TRADES",
+        "INFO", "TELL", "SHOW", "KNOW", "WANT", "NEED", "LIKE",
     }
+
+    # Phrases that indicate financial intent (needed for fallback symbol extraction)
+    FINANCIAL_INTENT_PHRASES = [
+        "price", "quote", "cost", "worth", "value", "trading at",
+        "buy", "sell", "invest", "stock", "share", "ticker",
+        "chart", "history", "historical", "candle", "ohlc",
+        "indicator", "sma", "ema", "rsi", "macd"
+    ]
 
     def _extract_symbols(self, query: str) -> List[str]:
         """Extract trading symbols from the query."""
@@ -286,12 +298,25 @@ class QueryProcessor:
                 if pair not in symbols:
                     symbols.append(pair)
 
-        # Check for stock tickers (must be in common stocks list)
+        # Check for stock tickers (known common stocks first)
         words = re.findall(r'\b[A-Z]{2,5}\b', query_upper)
         for word in words:
             if word in self.COMMON_STOCKS and word not in self.EXCLUDED_WORDS:
                 if word not in symbols:
                     symbols.append(word)
+
+        # If no known symbols found, accept any uppercase ticker-like word (2-5 chars)
+        # BUT only if the query shows financial intent
+        if not symbols:
+            has_financial_intent = any(
+                phrase in query_lower for phrase in self.FINANCIAL_INTENT_PHRASES
+            )
+            if has_financial_intent:
+                for word in words:
+                    if word not in self.EXCLUDED_WORDS and len(word) >= 2:
+                        if word not in symbols:
+                            symbols.append(word)
+                            break  # Only take the first potential ticker
 
         # Check for explicit forex/pair patterns (e.g., XAU/USD)
         explicit_pairs = re.findall(r'\b([A-Z]{2,6}/[A-Z]{2,6})\b', query_upper)
