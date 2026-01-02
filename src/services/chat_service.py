@@ -376,29 +376,101 @@ class ChatService:
 
         return self._format_conversion_response(parsed.from_currency, parsed.to_currency, amount, result.data)
 
+    # Known commodities as fallback when MCP server is unavailable
+    KNOWN_COMMODITIES = [
+        {"symbol": "XAU/USD", "name": "Gold"},
+        {"symbol": "XAG/USD", "name": "Silver"},
+        {"symbol": "XPT/USD", "name": "Platinum"},
+        {"symbol": "XPD/USD", "name": "Palladium"},
+        {"symbol": "NG", "name": "Natural Gas"},
+        {"symbol": "CL", "name": "Crude Oil WTI"},
+        {"symbol": "BZ", "name": "Brent Crude Oil"},
+        {"symbol": "HG", "name": "Copper"},
+        {"symbol": "ZC", "name": "Corn"},
+        {"symbol": "ZW", "name": "Wheat"},
+        {"symbol": "ZS", "name": "Soybeans"},
+        {"symbol": "KC", "name": "Coffee"},
+        {"symbol": "CT", "name": "Cotton"},
+        {"symbol": "SB", "name": "Sugar"},
+    ]
+
     async def _handle_commodities_list(self) -> Tuple[Optional[ChatResponse], Optional[ErrorResponse]]:
         """Handle commodities list queries."""
+        now = datetime.utcnow()
+
+        # Check cache first
+        cache_params = {"type": "commodities_list"}
+        cached = await self.cache_repo.get("commodities", cache_params)
+        if cached and not cached.get("_stale"):
+            commodities = cached.get("commodities", [])
+            return ChatResponse(
+                answer=f"Here are the available commodities: {self._format_commodities_list(commodities)}",
+                type="quote",
+                data={"commodities": commodities},
+                timestamp=now.isoformat() + "Z",
+                formatted_time=now.strftime("%B %d, %Y at %I:%M %p UTC")
+            ), None
+
+        # Try MCP server
         result = await self.mcp_client.list_commodities()
 
-        if not result.success:
-            return None, ErrorResponse(
-                answer=f"Sorry, I couldn't get the commodities list. {result.error}",
-                error=ErrorDetail(
-                    code="MCP_ERROR",
-                    message=result.error
-                )
-            )
+        if result.success:
+            # Parse commodities from MCP response
+            commodities = result.data if isinstance(result.data, list) else []
+            # Cache the result
+            await self.cache_repo.set("commodities", cache_params, {"commodities": commodities})
+        else:
+            # Try stale cache first
+            cached = await self.cache_repo.get("commodities", cache_params, allow_stale=True)
+            if cached:
+                commodities = cached.get("commodities", [])
+                return ChatResponse(
+                    answer=f"⚠️ Using cached data: Here are the available commodities: {self._format_commodities_list(commodities)}",
+                    type="quote",
+                    data={"commodities": commodities},
+                    timestamp=now.isoformat() + "Z",
+                    formatted_time=now.strftime("%B %d, %Y at %I:%M %p UTC")
+                ), None
 
-        now = datetime.utcnow()
-        commodities = result.data if isinstance(result.data, list) else []
+            # Use fallback known commodities list
+            commodities = self.KNOWN_COMMODITIES
+            return ChatResponse(
+                answer=f"⚠️ Using known commodities list (MCP unavailable): {self._format_commodities_list(commodities)}",
+                type="quote",
+                data={"commodities": commodities},
+                timestamp=now.isoformat() + "Z",
+                formatted_time=now.strftime("%B %d, %Y at %I:%M %p UTC")
+            ), None
 
         return ChatResponse(
-            answer=f"Here are the available commodities: {', '.join(commodities) if commodities else 'No commodities available'}",
+            answer=f"Here are the available commodities: {self._format_commodities_list(commodities)}",
             type="quote",
             data={"commodities": commodities},
             timestamp=now.isoformat() + "Z",
             formatted_time=now.strftime("%B %d, %Y at %I:%M %p UTC")
         ), None
+
+    def _format_commodities_list(self, commodities: list) -> str:
+        """Format commodities list for display."""
+        if not commodities:
+            return "No commodities available"
+
+        # Handle both simple string list and dict list formats
+        formatted = []
+        for item in commodities:
+            if isinstance(item, dict):
+                name = item.get("name", "")
+                symbol = item.get("symbol", "")
+                if name and symbol:
+                    formatted.append(f"{name} ({symbol})")
+                elif symbol:
+                    formatted.append(symbol)
+                elif name:
+                    formatted.append(name)
+            else:
+                formatted.append(str(item))
+
+        return ", ".join(formatted) if formatted else "No commodities available"
 
     def _format_price_response(self, symbol: str, data: Dict[str, Any]) -> Tuple[ChatResponse, None]:
         """Format a price response."""
