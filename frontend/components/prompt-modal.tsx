@@ -45,7 +45,7 @@ export function PromptModal({
           </TabsList>
 
           {/* Active Prompt Tab */}
-          <TabsContent value="active" className="space-y-4 mt-4">
+          <TabsContent value="active" className="space-y-4 mt-4 max-h-[60vh] overflow-y-auto">
             {activePrompt ? (
               <PromptCard
                 prompt={activePrompt}
@@ -86,7 +86,7 @@ export function PromptModal({
           </TabsContent>
 
           {/* Create New Tab */}
-          <TabsContent value="create" className="mt-4">
+          <TabsContent value="create" className="mt-4 max-h-[60vh] overflow-y-auto">
             <PromptEditor onSave={onCreatePrompt} />
           </TabsContent>
         </Tabs>

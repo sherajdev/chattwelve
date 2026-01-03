@@ -74,7 +74,7 @@ export function PromptEditor({ initialName = "", initialContent = "", onSave, on
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Enter your system prompt here..."
-          className={`min-h-[200px] resize-none ${errors.content ? "border-destructive" : ""}`}
+          className={`min-h-[200px] max-h-[40vh] overflow-y-auto ${errors.content ? "border-destructive" : ""}`}
         />
         {errors.content && <p className="text-xs text-destructive">{errors.content}</p>}
         <p className="text-xs text-muted-foreground">{content.length} characters</p>

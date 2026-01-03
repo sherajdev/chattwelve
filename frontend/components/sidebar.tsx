@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import type { ChatSession } from "@/lib/types"
 import { useState } from "react"
+import Image from "next/image"
 
 interface SidebarProps {
   sessions: ChatSession[]
@@ -20,13 +21,13 @@ function SidebarContent({ sessions, activeSessionId, onNewChat, onSelectSession,
     <div className="flex h-full w-60 flex-col bg-sidebar">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-sidebar-border p-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold">
-          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5z" />
-            <path d="M2 17l10 5 10-5" />
-            <path d="M2 12l10 5 10-5" />
-          </svg>
-        </div>
+        <Image
+          src="/logo.png"
+          alt="ChatTwelve Logo"
+          width={32}
+          height={32}
+          className="rounded-lg"
+        />
         <h1 className="text-lg font-semibold text-sidebar-foreground">ChatTwelve</h1>
       </div>
 

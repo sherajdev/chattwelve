@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import Image from "next/image"
 
 interface EmptyStateProps {
   onSuggestionClick: (suggestion: string) => void
@@ -17,18 +18,14 @@ export function EmptyState({ onSuggestionClick }: EmptyStateProps) {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-4">
       {/* Logo */}
-      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gold">
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          className="h-10 w-10 text-gold-foreground"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <path d="M12 2L2 7l10 5 10-5-10-5z" />
-          <path d="M2 17l10 5 10-5" />
-          <path d="M2 12l10 5 10-5" />
-        </svg>
+      <div className="mb-6">
+        <Image
+          src="/logo.png"
+          alt="ChatTwelve Logo"
+          width={80}
+          height={80}
+          className="rounded-2xl"
+        />
       </div>
 
       {/* Tagline */}
