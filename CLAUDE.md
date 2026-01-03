@@ -39,6 +39,18 @@ bash test_injection.sh              # Input sanitization test
 ## Architecture
 
 ### Request Flow
+
+**AI Agent Mode (default, USE_AI_AGENT=true):**
+```
+Client → FastAPI Router → ChatService
+                            ├→ SessionRepository (session validation)
+                            ├→ CacheRepository (cache lookup/store)
+                            └→ AIAgentService (autonomous tool calling)
+                                  ├→ MCPClient tools (price, quote, historical, etc.)
+                                  └→ Tavily web_search tool
+```
+
+**Manual Routing Mode (USE_AI_AGENT=false):**
 ```
 Client → FastAPI Router → ChatService
                             ├→ SessionRepository (session validation)
@@ -74,6 +86,18 @@ Client → FastAPI Router → ChatService
 - Health check via `health_check()` method
 - Returns `AIResponse` dataclass with success status, content, model used, and errors
 
+**AIAgentService** (`ai_agent_service.py`) - Pydantic AI agent with autonomous tool calling:
+- Uses FallbackModel chain (primary → fallback)
+- Registered tools: `get_price`, `get_quote`, `get_historical_data`, `get_technical_indicator`, `convert_currency`, `web_search`
+- System prompt loaded from database on each request
+- Returns `AgentResponse` with content, model_used, tools_used, and success status
+- Web search via Tavily API (requires `TAVILY_API_KEY`)
+
+**PromptRepository** (`prompt_repo.py`) - System prompts management:
+- CRUD operations for system prompts
+- Active prompt selection
+- Default trading-focused prompt pre-loaded
+
 ### Database (SQLite via aiosqlite)
 
 **sessions table** - UUID-based sessions with:
@@ -85,6 +109,11 @@ Client → FastAPI Router → ChatService
 - Type-specific TTLs (price: 45s, historical/indicator: 300s)
 - Stale cache fallback when MCP unavailable
 
+**system_prompts table** - Editable AI system prompts:
+- UUID-based with name, prompt text, description
+- `is_active` flag for active prompt selection
+- Default trading-focused prompt pre-seeded on init
+
 ## Key Configuration (src/core/config.py)
 
 - MCP_SERVER_URL: Set via environment variable (e.g., `http://localhost:3847`)
@@ -94,6 +123,8 @@ Client → FastAPI Router → ChatService
 - OPENROUTER_API_KEY: Required for AI service (get from openrouter.ai/keys)
 - AI_PRIMARY_MODEL: `openai/gpt-5.2` (default primary model)
 - AI_FALLBACK_MODEL: `google/gemini-3-flash-preview` (default fallback model)
+- USE_AI_AGENT: `true` (default) for autonomous tool calling, `false` for manual routing
+- TAVILY_API_KEY: Required for web search tool (get from tavily.com, free tier: 1,000 searches/month)
 
 ## Supported Query Types
 
@@ -105,6 +136,7 @@ Client → FastAPI Router → ChatService
 | Indicator | "Calculate RSI for BTC" | Technical indicator values |
 | Conversion | "Convert 100 USD to EUR" | Exchange rate + result |
 | Commodities | "List available commodities" | Supported commodities |
+| Web Search | "Latest news about Tesla stock" | AI answer + source URLs |
 
 ## Symbol Resolution
 
@@ -123,8 +155,65 @@ The QueryProcessor maps natural language to trading symbols:
 - OpenRouter unavailable: Automatic retry with exponential backoff, then graceful error response
 - AI rate limited: Returns user-friendly message with retry suggestion
 - AI auth failure: Marks service unavailable, returns config error message
+- Tavily unavailable: Returns error message, agent continues with other tools
+- Missing TAVILY_API_KEY: web_search tool returns configuration error
 
-## AI Service Usage
+## AI Agent Service Usage (Recommended)
+
+```python
+from src.services.ai_agent_service import ai_agent_service, AgentResponse
+
+# Run the AI agent with autonomous tool calling
+response: AgentResponse = await ai_agent_service.run_agent(
+    user_query="What is the current gold price and any recent news?",
+    session_context={"user_id": "123"}  # Optional context
+)
+
+if response.success:
+    print(response.content)       # AI-generated response
+    print(response.model_used)    # e.g., "openai/gpt-5.2"
+    print(response.tools_used)    # e.g., ["get_price", "web_search"]
+    print(response.used_fallback) # True if fallback model was used
+else:
+    print(response.error)         # Error message
+
+# Health check
+is_healthy, error = await ai_agent_service.health_check()
+
+# Model info
+info = ai_agent_service.get_model_info()
+# {'primary_model': 'openai/gpt-5.2', 'fallback_model': 'google/gemini-3-flash-preview', ...}
+```
+
+## System Prompts API
+
+```python
+# List all prompts
+GET /api/prompts
+
+# Get active prompt
+GET /api/prompts/active
+
+# Create new prompt
+POST /api/prompts
+{
+    "name": "My Custom Prompt",
+    "prompt": "You are a helpful trading assistant...",
+    "description": "Custom trading prompt",
+    "is_active": false
+}
+
+# Update prompt
+PUT /api/prompts/{id}
+
+# Delete prompt (cannot delete active)
+DELETE /api/prompts/{id}
+
+# Activate a prompt
+POST /api/prompts/{id}/activate
+```
+
+## Legacy AI Service Usage (Manual Routing Mode)
 
 ```python
 from src.services import ai_service, AIResponse
@@ -146,8 +235,4 @@ else:
 
 # Health check
 is_healthy, error = await ai_service.health_check()
-
-# Model info
-info = ai_service.get_model_info()
-# {'primary_model': 'openai/gpt-5.2', 'fallback_model': 'google/gemini-3-flash-preview', ...}
 ```
