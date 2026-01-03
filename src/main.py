@@ -16,6 +16,7 @@ from src.api.schemas.responses import HealthResponse, MCPHealthResponse, AIHealt
 from src.services.ai_service import ai_service
 from src.api.routes.session import router as session_router
 from src.api.routes.chat import router as chat_router
+from src.api.routes.prompts import router as prompts_router
 
 
 @asynccontextmanager
@@ -52,6 +53,7 @@ app.add_middleware(
 # Include routers
 app.include_router(session_router)
 app.include_router(chat_router)
+app.include_router(prompts_router)
 
 
 @app.middleware("http")

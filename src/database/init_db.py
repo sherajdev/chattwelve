@@ -15,6 +15,7 @@ async def init_database() -> None:
     Creates:
     - sessions: Conversation session storage
     - cache: Query response cache
+    - system_prompts: AI system prompts storage
     """
     db_path = Path(settings.DATABASE_PATH)
 
@@ -45,6 +46,19 @@ async def init_database() -> None:
             )
         """)
 
+        # Create system_prompts table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS system_prompts (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                prompt TEXT NOT NULL,
+                description TEXT,
+                is_active BOOLEAN DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Create indexes for better query performance
         await db.execute("""
             CREATE INDEX IF NOT EXISTS idx_sessions_last_activity
@@ -55,6 +69,43 @@ async def init_database() -> None:
             CREATE INDEX IF NOT EXISTS idx_cache_created_at
             ON cache(created_at)
         """)
+
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_system_prompts_active
+            ON system_prompts(is_active)
+        """)
+
+        # Insert default system prompt if none exists
+        cursor = await db.execute("SELECT COUNT(*) FROM system_prompts")
+        row = await cursor.fetchone()
+        count = row[0] if row else 0
+
+        if count == 0:
+            import uuid
+            default_prompt = """You are a helpful financial data assistant powered by ChatTwelve.
+
+Your role is to help users get real-time financial market data including stock prices, quotes, historical data, technical indicators, and currency conversions.
+
+You have access to various tools to fetch this data. Use them wisely based on what the user asks for:
+- For current prices: use get_price
+- For detailed quotes: use get_quote
+- For historical data: use get_historical_data
+- For technical indicators: use get_technical_indicator
+- For currency conversions: use convert_currency
+- For general web search: use web_search
+
+Always be conversational, accurate, and cite the data source. If you're unsure about something, ask clarifying questions."""
+
+            await db.execute("""
+                INSERT INTO system_prompts (id, name, prompt, description, is_active)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                str(uuid.uuid4()),
+                "default",
+                default_prompt,
+                "Default system prompt for the financial assistant",
+                1
+            ))
 
         await db.commit()
 

@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     AI_FALLBACK_MODEL: str = "google/gemini-3-flash-preview"
     AI_APP_URL: Optional[str] = None  # Optional: for OpenRouter analytics
     AI_APP_TITLE: str = "ChatTwelve"
+    USE_AI_AGENT: bool = True  # Use AI agent with tool calling (True) or manual routing (False)
 
     class Config:
         env_file = ".env"
