@@ -137,6 +137,17 @@ class MCPHealthResponse(BaseModel):
     message: Optional[str] = Field(None, description="Additional status message")
 
 
+class AIHealthResponse(BaseModel):
+    """AI service health check response."""
+
+    status: str = Field(..., description="AI service status: healthy, degraded, or unavailable")
+    available: bool = Field(..., description="Whether AI service is available")
+    primary_model: str = Field(..., description="Configured primary AI model")
+    fallback_model: str = Field(..., description="Configured fallback AI model")
+    message: Optional[str] = Field(None, description="Additional status message")
+    last_error: Optional[str] = Field(None, description="Last error message if any")
+
+
 class RateLimitError(BaseModel):
     """Rate limit error response."""
 

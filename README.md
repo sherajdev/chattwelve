@@ -25,9 +25,10 @@ This is Phase 1 of the ChatTwelve project, focusing on the backend foundation wi
 
 - **Language**: Python 3.11+
 - **Framework**: FastAPI
-- **AI Framework**: Pydantic AI
+- **AI Framework**: Pydantic AI with OpenRouter
+- **AI Models**: OpenAI GPT-5.2 (primary), Google Gemini 3 Flash (fallback)
 - **Database**: SQLite (session/cache storage)
-- **External Service**: TwelveData MCP Server
+- **External Services**: TwelveData MCP Server, OpenRouter API
 
 ## Prerequisites
 
@@ -41,7 +42,9 @@ Copy `.env.example` to `.env` and configure:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `MCP_SERVER_URL` | TwelveData MCP server URL | `http://localhost:3847` |
-| `OPENAI_API_KEY` | OpenAI API key (optional) | - |
+| `OPENROUTER_API_KEY` | OpenRouter API key (required for AI) | - |
+| `AI_PRIMARY_MODEL` | Primary AI model | `openai/gpt-5.2` |
+| `AI_FALLBACK_MODEL` | Fallback AI model | `google/gemini-3-flash-preview` |
 | `DEBUG` | Enable debug mode | `false` |
 
 ## Quick Start
@@ -80,6 +83,7 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 ### Health
 - `GET /api/health` - Backend health check
 - `GET /api/mcp-health` - TwelveData MCP server connectivity check
+- `GET /api/ai-health` - OpenRouter AI service health check
 
 ## Example Usage
 
@@ -151,6 +155,37 @@ curl -X POST http://localhost:8000/api/chat \
 
 Supported indicators: SMA, EMA, WMA, RSI, MACD, Bollinger Bands, Stochastic, ADX, ATR, CCI, OBV, Momentum, ROC, Williams %R
 
+## AI Service
+
+ChatTwelve uses OpenRouter to access multiple AI models with automatic fallback:
+
+### Configuration
+- **Primary Model**: `openai/gpt-5.2` - High capability for complex queries
+- **Fallback Model**: `google/gemini-3-flash-preview` - Fast fallback if primary fails
+
+### Features
+- **Automatic Fallback**: If primary model fails, automatically switches to fallback
+- **Retry with Backoff**: Exponential backoff retry on transient failures
+- **Health Monitoring**: `/api/ai-health` endpoint for service status
+- **Error Handling**: Graceful degradation with informative error messages
+
+### Usage Example
+```python
+from src.services import ai_service
+
+# Generate with automatic fallback
+response = await ai_service.generate("Your prompt here")
+
+if response.success:
+    print(response.content)
+    print(f"Model used: {response.model_used}")
+else:
+    print(f"Error: {response.error}")
+
+# Check service health
+is_healthy, error = await ai_service.health_check()
+```
+
 ## Project Structure
 
 ```
@@ -160,23 +195,22 @@ chattwelve/
 │   ├── api/
 │   │   ├── routes/          # API route handlers
 │   │   │   ├── chat.py
-│   │   │   ├── session.py
-│   │   │   └── health.py
+│   │   │   └── session.py
 │   │   └── schemas/         # Pydantic request/response schemas
 │   ├── core/
 │   │   ├── config.py        # Configuration settings
 │   │   └── logging.py       # Logging configuration
 │   ├── services/
-│   │   ├── ai_agent.py      # Pydantic AI agent for NLP
-│   │   ├── mcp_client.py    # TwelveData MCP client
-│   │   └── cache.py         # Caching service
+│   │   ├── ai_service.py    # OpenRouter AI service with fallback
+│   │   ├── chat_service.py  # Chat orchestration service
+│   │   ├── query_processor.py # NLP query parsing
+│   │   └── mcp_client.py    # TwelveData MCP client
 │   ├── database/
 │   │   ├── init_db.py       # Database initialization
 │   │   ├── session_repo.py  # Session repository
 │   │   └── cache_repo.py    # Cache repository
 │   └── models/              # Database models
 ├── tests/                   # Test suite
-├── cli.py                   # CLI test interface
 ├── requirements.txt         # Python dependencies
 ├── init.sh                  # Setup script
 └── README.md

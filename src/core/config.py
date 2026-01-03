@@ -42,9 +42,12 @@ class Settings(BaseSettings):
     # Query Limits
     MAX_QUERY_LENGTH: int = 5000
 
-    # AI
-    AI_MODEL: str = "openai:gpt-4o-mini"
-    OPENAI_API_KEY: Optional[str] = None
+    # AI - OpenRouter
+    OPENROUTER_API_KEY: Optional[str] = None
+    AI_PRIMARY_MODEL: str = "openai/gpt-5.2"
+    AI_FALLBACK_MODEL: str = "google/gemini-3-flash-preview"
+    AI_APP_URL: Optional[str] = None  # Optional: for OpenRouter analytics
+    AI_APP_TITLE: str = "ChatTwelve"
 
     class Config:
         env_file = ".env"

@@ -34,6 +34,7 @@ bash test_injection.sh              # Input sanitization test
 - Swagger UI: http://localhost:8000/docs
 - Health: GET http://localhost:8000/api/health
 - MCP Health: GET http://localhost:8000/api/mcp-health
+- AI Health: GET http://localhost:8000/api/ai-health
 
 ## Architecture
 
@@ -43,7 +44,8 @@ Client → FastAPI Router → ChatService
                             ├→ SessionRepository (session validation)
                             ├→ QueryProcessor (NLP parsing)
                             ├→ CacheRepository (cache lookup/store)
-                            └→ MCPClient (TwelveData MCP calls)
+                            ├→ MCPClient (TwelveData MCP calls)
+                            └→ AIService (OpenRouter AI generation)
 ```
 
 ### Core Services (src/services/)
@@ -64,6 +66,14 @@ Client → FastAPI Router → ChatService
 - 7 tools: get_price, get_quote, get_time_series, get_exchange_rate, convert_currency, list_commodities, technical_indicator
 - Error handling with fallback support
 
+**AIService** (`ai_service.py`) - OpenRouter AI integration with:
+- Primary model: `openai/gpt-5.2`
+- Fallback model: `google/gemini-3-flash-preview`
+- Automatic fallback when primary model fails
+- Retry with exponential backoff (1s, 2s, 4s)
+- Health check via `health_check()` method
+- Returns `AIResponse` dataclass with success status, content, model used, and errors
+
 ### Database (SQLite via aiosqlite)
 
 **sessions table** - UUID-based sessions with:
@@ -81,7 +91,9 @@ Client → FastAPI Router → ChatService
 - RATE_LIMIT_REQUESTS: 30 per 60 seconds per session
 - SESSION_TIMEOUT_MINUTES: 60
 - MAX_QUERY_LENGTH: 5000 characters
-- AI_MODEL: openai:gpt-4o-mini (requires OPENAI_API_KEY env var)
+- OPENROUTER_API_KEY: Required for AI service (get from openrouter.ai/keys)
+- AI_PRIMARY_MODEL: `openai/gpt-5.2` (default primary model)
+- AI_FALLBACK_MODEL: `google/gemini-3-flash-preview` (default fallback model)
 
 ## Supported Query Types
 
@@ -108,3 +120,34 @@ The QueryProcessor maps natural language to trading symbols:
 - Rate limiting: Returns 429 with user-friendly message
 - Invalid session: Returns 404 with session creation instructions
 - Query validation: Returns 400 with specific validation errors
+- OpenRouter unavailable: Automatic retry with exponential backoff, then graceful error response
+- AI rate limited: Returns user-friendly message with retry suggestion
+- AI auth failure: Marks service unavailable, returns config error message
+
+## AI Service Usage
+
+```python
+from src.services import ai_service, AIResponse
+
+# Async generation with error handling
+response: AIResponse = await ai_service.generate(
+    prompt="Your prompt",
+    system_prompt="Optional system prompt",
+    use_fallback=True,      # Use fallback chain (default)
+    max_retries=2,          # Retry attempts (default)
+)
+
+if response.success:
+    print(response.content)      # Generated text
+    print(response.model_used)   # e.g., "openai/gpt-5.2"
+    print(response.used_fallback) # True if fallback was used
+else:
+    print(response.error)        # Error message
+
+# Health check
+is_healthy, error = await ai_service.health_check()
+
+# Model info
+info = ai_service.get_model_info()
+# {'primary_model': 'openai/gpt-5.2', 'fallback_model': 'google/gemini-3-flash-preview', ...}
+```

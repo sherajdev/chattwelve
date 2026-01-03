@@ -12,7 +12,8 @@ from fastapi.responses import JSONResponse
 from src.core.config import settings
 from src.core.logging import logger, log_response_time
 from src.database.init_db import init_database
-from src.api.schemas.responses import HealthResponse, MCPHealthResponse
+from src.api.schemas.responses import HealthResponse, MCPHealthResponse, AIHealthResponse
+from src.services.ai_service import ai_service
 from src.api.routes.session import router as session_router
 from src.api.routes.chat import router as chat_router
 
@@ -119,6 +120,38 @@ async def mcp_health_check():
         mcp_server_url=mcp_url,
         connected=connected,
         message=message
+    )
+
+
+@app.get("/api/ai-health", response_model=AIHealthResponse)
+async def ai_health_check():
+    """
+    AI service health check endpoint.
+
+    Checks connectivity to OpenRouter and returns AI model configuration.
+    """
+    model_info = ai_service.get_model_info()
+
+    # Perform health check
+    is_healthy, error = await ai_service.health_check()
+
+    if is_healthy:
+        status = "healthy"
+        message = "OpenRouter API is reachable and responding"
+    elif model_info.get("initialized") and not is_healthy:
+        status = "degraded"
+        message = error or "OpenRouter API check failed but service was previously initialized"
+    else:
+        status = "unavailable"
+        message = error or "AI service is not available"
+
+    return AIHealthResponse(
+        status=status,
+        available=is_healthy,
+        primary_model=model_info.get("primary_model", "unknown"),
+        fallback_model=model_info.get("fallback_model", "unknown"),
+        message=message,
+        last_error=model_info.get("last_error")
     )
 
 
