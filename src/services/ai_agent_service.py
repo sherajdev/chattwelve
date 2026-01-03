@@ -302,49 +302,58 @@ Always be conversational, accurate, and cite the data source. If you're unsure a
         @agent.tool
         async def web_search(ctx: RunContext[Dependencies], query: str) -> Dict[str, Any]:
             """
-            Search the web for real-time information beyond financial data.
-            Use this for general questions, news, or when market data tools don't have the answer.
+            Search the web for real-time information using Tavily API.
+            Optimized for financial and trading news.
 
             Args:
                 ctx: Runtime context
                 query: Search query string
 
             Returns:
-                Dictionary with search results
+                Dictionary with search results including AI-generated answer and sources
             """
             logger.info(f"Tool called: web_search({query})")
 
-            # Using DuckDuckGo HTML search as a simple web search implementation
-            try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    response = await client.get(
-                        "https://html.duckduckgo.com/html/",
-                        params={"q": query},
-                        headers={
-                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                        }
-                    )
+            if not settings.TAVILY_API_KEY:
+                return {
+                    "error": "TAVILY_API_KEY not configured. Please add your Tavily API key to .env",
+                    "success": False
+                }
 
-                    if response.status_code == 200:
-                        # Simple extraction of first few results
-                        # In production, you'd want to parse this properly or use a search API
-                        text = response.text[:2000]  # Limit response size
-                        return {
-                            "success": True,
-                            "data": {
-                                "query": query,
-                                "snippet": text,
-                                "message": "Web search completed. Results may be limited."
-                            }
-                        }
-                    else:
-                        return {
-                            "error": f"Search failed with status {response.status_code}",
-                            "success": False
-                        }
+            try:
+                from tavily import AsyncTavilyClient
+
+                client = AsyncTavilyClient(api_key=settings.TAVILY_API_KEY)
+                response = await client.search(
+                    query=query,
+                    search_depth="basic",
+                    topic="finance",
+                    include_answer=True,
+                    max_results=5
+                )
+
+                # Format results for the AI
+                results = []
+                for r in response.get("results", []):
+                    results.append({
+                        "title": r.get("title"),
+                        "url": r.get("url"),
+                        "content": r.get("content"),
+                        "score": r.get("score")
+                    })
+
+                return {
+                    "success": True,
+                    "data": {
+                        "query": query,
+                        "answer": response.get("answer"),
+                        "results": results,
+                        "response_time": response.get("response_time")
+                    }
+                }
 
             except Exception as e:
-                logger.error(f"Web search failed: {e}")
+                logger.error(f"Tavily search failed: {e}")
                 return {
                     "error": f"Web search error: {str(e)}",
                     "success": False

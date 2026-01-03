@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     AI_APP_TITLE: str = "ChatTwelve"
     USE_AI_AGENT: bool = True  # Use AI agent with tool calling (True) or manual routing (False)
 
+    # Web Search - Tavily API
+    TAVILY_API_KEY: Optional[str] = None
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
