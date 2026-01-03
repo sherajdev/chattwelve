@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./chattwelve.db"
     DATABASE_PATH: str = "./chattwelve.db"
 
-    # MCP Server
-    MCP_SERVER_URL: str = "http://192.168.50.250:3847"
+    # MCP Server (set via MCP_SERVER_URL environment variable)
+    MCP_SERVER_URL: str = "http://localhost:3847"
     MCP_TIMEOUT_SECONDS: int = 30
 
     # Session

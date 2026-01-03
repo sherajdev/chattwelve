@@ -23,3 +23,8 @@ node_modules/
 
 # Cache
 .progress_cache
+
+# Development notes (may contain local config)
+claude-progress.txt
+app_spec.txt
+prompts/

@@ -77,7 +77,7 @@ Client → FastAPI Router → ChatService
 
 ## Key Configuration (src/core/config.py)
 
-- MCP_SERVER_URL: http://192.168.50.250:3847
+- MCP_SERVER_URL: Set via environment variable (e.g., `http://localhost:3847`)
 - RATE_LIMIT_REQUESTS: 30 per 60 seconds per session
 - SESSION_TIMEOUT_MINUTES: 60
 - MAX_QUERY_LENGTH: 5000 characters

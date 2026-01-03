@@ -76,11 +76,13 @@ fi
 
 # Check MCP server connectivity
 echo "[5/6] Checking TwelveData MCP Server connectivity..."
-MCP_URL="http://192.168.50.250:3847/health"
+MCP_SERVER_URL="${MCP_SERVER_URL:-http://localhost:3847}"
+MCP_URL="${MCP_SERVER_URL}/health"
 if curl -s --connect-timeout 5 "$MCP_URL" > /dev/null 2>&1; then
-    echo "  ✓ TwelveData MCP Server reachable at http://192.168.50.250:3847"
+    echo "  ✓ TwelveData MCP Server reachable at ${MCP_SERVER_URL}"
 else
     echo "  ⚠ TwelveData MCP Server not reachable at $MCP_URL"
+    echo "    Set MCP_SERVER_URL environment variable to configure the MCP server address."
     echo "    The application will handle this gracefully, but some features may be limited."
 fi
 
@@ -95,7 +97,7 @@ echo "  API Base URL:    http://localhost:8000"
 echo "  API Docs:        http://localhost:8000/docs"
 echo "  Health Check:    http://localhost:8000/api/health"
 echo ""
-echo "  MCP Server:      http://192.168.50.250:3847"
+echo "  MCP Server:      ${MCP_SERVER_URL}"
 echo ""
 echo "  Press Ctrl+C to stop the server"
 echo ""

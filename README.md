@@ -32,7 +32,17 @@ This is Phase 1 of the ChatTwelve project, focusing on the backend foundation wi
 ## Prerequisites
 
 - Python 3.11 or higher
-- TwelveData MCP Server running at http://192.168.50.250:3847
+- TwelveData MCP Server running
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and configure:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MCP_SERVER_URL` | TwelveData MCP server URL | `http://localhost:3847` |
+| `OPENAI_API_KEY` | OpenAI API key (optional) | - |
+| `DEBUG` | Enable debug mode | `false` |
 
 ## Quick Start
 
