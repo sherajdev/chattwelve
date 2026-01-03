@@ -74,6 +74,13 @@ else
     echo "  ⚠ Database initialization will run on first server start"
 fi
 
+# Load environment variables from .env if it exists
+if [ -f ".env" ]; then
+    set -a
+    source .env
+    set +a
+fi
+
 # Check MCP server connectivity
 echo "[5/6] Checking TwelveData MCP Server connectivity..."
 MCP_SERVER_URL="${MCP_SERVER_URL:-http://localhost:3847}"
