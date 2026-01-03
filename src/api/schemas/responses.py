@@ -164,3 +164,29 @@ class RateLimitError(BaseModel):
     retry_after_seconds: int = Field(..., description="Seconds until rate limit resets")
     requests_made: int = Field(..., description="Number of requests made in window")
     requests_limit: int = Field(..., description="Maximum requests allowed in window")
+
+
+class PromptResponse(BaseModel):
+    """System prompt response."""
+
+    id: str = Field(..., description="Prompt ID")
+    name: str = Field(..., description="Prompt name")
+    prompt: str = Field(..., description="System prompt text")
+    description: Optional[str] = Field(None, description="Prompt description")
+    is_active: bool = Field(..., description="Whether this is the active prompt")
+    created_at: str = Field(..., description="ISO 8601 creation timestamp")
+    updated_at: str = Field(..., description="ISO 8601 update timestamp")
+
+
+class PromptListResponse(BaseModel):
+    """List of system prompts response."""
+
+    prompts: List[PromptResponse] = Field(..., description="List of system prompts")
+    count: int = Field(..., description="Total number of prompts")
+
+
+class PromptDeleteResponse(BaseModel):
+    """Prompt deletion response."""
+
+    message: str = Field(..., description="Success message")
+    prompt_id: str = Field(..., description="Deleted prompt ID")

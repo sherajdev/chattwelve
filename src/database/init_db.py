@@ -15,6 +15,7 @@ async def init_database() -> None:
     Creates:
     - sessions: Conversation session storage
     - cache: Query response cache
+    - system_prompts: AI system prompts storage
     """
     db_path = Path(settings.DATABASE_PATH)
 
@@ -45,6 +46,19 @@ async def init_database() -> None:
             )
         """)
 
+        # Create system_prompts table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS system_prompts (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                prompt TEXT NOT NULL,
+                description TEXT,
+                is_active BOOLEAN DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Create indexes for better query performance
         await db.execute("""
             CREATE INDEX IF NOT EXISTS idx_sessions_last_activity
@@ -55,6 +69,59 @@ async def init_database() -> None:
             CREATE INDEX IF NOT EXISTS idx_cache_created_at
             ON cache(created_at)
         """)
+
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_system_prompts_active
+            ON system_prompts(is_active)
+        """)
+
+        # Insert default system prompt if none exists
+        cursor = await db.execute("SELECT COUNT(*) FROM system_prompts")
+        row = await cursor.fetchone()
+        count = row[0] if row else 0
+
+        if count == 0:
+            import uuid
+            default_prompt = """You are a professional trading assistant specializing in market analysis, technical analysis, and algorithmic trading strategies.
+
+**Core Principles:**
+- NEVER guess or hallucinate. Always use tools for real-time data.
+- When uncertain, verify with multiple tools before responding.
+- Provide actionable insights with exact numbers and timestamps.
+
+**Available Tools:**
+- get_price: Real-time prices (stocks, crypto, commodities, forex)
+- get_quote: OHLC, volume, 52-week range, percent changes
+- get_historical_data: Candlestick data for backtesting and patterns
+- get_technical_indicator: RSI, SMA, EMA, MACD, Bollinger Bands
+- convert_currency: Exchange rates and multi-currency analysis
+- web_search: Latest news, earnings, regulatory updates
+
+**Trading Guidelines:**
+- Price queries: Show current price, daily change %, support/resistance levels
+- Technical analysis: Calculate indicators and interpret buy/sell signals
+- Algo trading: Suggest entry/exit points backed by data
+- Risk management: Include volatility and correlation metrics
+- Backtesting: Provide historical data with optimal intervals
+
+**Response Structure:**
+1. Use appropriate tools (multiple if needed for verification)
+2. Present exact numbers with data sources
+3. Offer technical interpretation when relevant
+4. Explicitly flag any uncertainty
+
+Always cite which tools were used and double-check critical data before providing trading recommendations."""
+
+            await db.execute("""
+                INSERT INTO system_prompts (id, name, prompt, description, is_active)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                str(uuid.uuid4()),
+                "default",
+                default_prompt,
+                "Trading-focused assistant with verification safeguards",
+                1
+            ))
 
         await db.commit()
 

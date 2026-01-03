@@ -12,6 +12,7 @@ from src.database.session_repo import session_repo, Session
 from src.database.cache_repo import cache_repo
 from src.services.mcp_client import mcp_client, MCPToolResult
 from src.services.query_processor import query_processor, QueryIntent, ParsedQuery
+from src.services.ai_agent_service import ai_agent_service
 from src.api.schemas.responses import (
     ChatResponse, ErrorResponse, ErrorDetail,
     PriceData, QuoteData, HistoricalData, CandleData,
@@ -45,6 +46,10 @@ class ChatService:
         """
         # Log the request
         log_request(session_id, query)
+
+        # Use AI agent mode if enabled
+        if settings.USE_AI_AGENT:
+            return await self._process_with_ai_agent(session_id, query)
 
         # Validate session (with expiry check)
         session = await self.session_repo.get(session_id, check_expiry=True)
@@ -114,6 +119,106 @@ class ChatService:
                 answer="Sorry, I encountered an error processing your request. Please try again.",
                 error=ErrorDetail(
                     code="PROCESSING_ERROR",
+                    message=str(e)
+                )
+            )
+
+    async def _process_with_ai_agent(
+        self,
+        session_id: str,
+        query: str
+    ) -> Tuple[Optional[ChatResponse], Optional[ErrorResponse]]:
+        """
+        Process chat query using AI agent with tool calling.
+
+        Args:
+            session_id: Session ID for context
+            query: Natural language query
+
+        Returns:
+            Tuple of (ChatResponse, None) on success or (None, ErrorResponse) on error
+        """
+        # Validate session (with expiry check)
+        session = await self.session_repo.get(session_id, check_expiry=True)
+        if not session:
+            # Check if session exists but is expired
+            session_raw = await self.session_repo.get(session_id, check_expiry=False)
+            if session_raw and self.session_repo.is_expired(session_raw):
+                return None, ErrorResponse(
+                    answer="Your session has expired. Please create a new session to continue.",
+                    error=ErrorDetail(
+                        code="SESSION_EXPIRED",
+                        message=f"Session {session_id} has expired due to inactivity"
+                    )
+                )
+            return None, ErrorResponse(
+                answer="Session not found. Please create a new session.",
+                error=ErrorDetail(
+                    code="SESSION_NOT_FOUND",
+                    message=f"Session {session_id} does not exist"
+                )
+            )
+
+        # Check rate limit
+        try:
+            count, seconds_until_reset = await self.session_repo.increment_request_count(session_id)
+            if count > settings.RATE_LIMIT_REQUESTS:
+                return None, ErrorResponse(
+                    answer=f"You've made too many requests. Please wait {seconds_until_reset} seconds before trying again.",
+                    error=ErrorDetail(
+                        code="RATE_LIMITED",
+                        message=f"Rate limit exceeded: {count}/{settings.RATE_LIMIT_REQUESTS} requests"
+                    )
+                )
+        except Exception as e:
+            logger.error(f"Rate limit check failed: {e}")
+
+        # Run the AI agent
+        try:
+            result = await ai_agent_service.run_agent(
+                user_query=query,
+                session_context={"context": session.context}
+            )
+
+            if not result.success:
+                return None, ErrorResponse(
+                    answer="I encountered an error processing your request. Please try again.",
+                    error=ErrorDetail(
+                        code="AI_AGENT_ERROR",
+                        message=result.error or "Unknown error"
+                    )
+                )
+
+            # Update session context
+            now = datetime.utcnow()
+            context_entry = {
+                "query": query,
+                "response": result.content[:200],  # Store summary
+                "tools_used": result.tools_used,
+                "timestamp": now.isoformat()
+            }
+            new_context = session.context[-9:] + [context_entry]
+            await self.session_repo.update_context(session_id, new_context)
+
+            # Return AI agent response
+            return ChatResponse(
+                answer=result.content,
+                type="price",  # Generic type for AI responses
+                data={
+                    "model_used": result.model_used,
+                    "tools_used": result.tools_used,
+                    "used_fallback": result.used_fallback
+                },
+                timestamp=now.isoformat() + "Z",
+                formatted_time=now.strftime("%B %d, %Y at %I:%M %p UTC")
+            ), None
+
+        except Exception as e:
+            logger.error(f"AI agent error: {e}")
+            return None, ErrorResponse(
+                answer="Sorry, I encountered an error processing your request. Please try again.",
+                error=ErrorDetail(
+                    code="AI_AGENT_ERROR",
                     message=str(e)
                 )
             )

@@ -50,3 +50,71 @@ class CreateSessionRequest(BaseModel):
         default=None,
         description="Optional metadata to associate with the session"
     )
+
+
+class CreatePromptRequest(BaseModel):
+    """Request schema for creating a new system prompt."""
+
+    name: str = Field(
+        ...,
+        description="Unique name for the prompt",
+        min_length=1,
+        max_length=100
+    )
+    prompt: str = Field(
+        ...,
+        description="The system prompt text",
+        min_length=1,
+        max_length=10000
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Optional description of the prompt",
+        max_length=500
+    )
+    is_active: bool = Field(
+        default=False,
+        description="Whether this should be the active prompt"
+    )
+
+    @field_validator("name", "prompt")
+    @classmethod
+    def validate_not_whitespace(cls, v: str) -> str:
+        """Ensure fields are not just whitespace."""
+        if not v.strip():
+            raise ValueError("Field cannot be empty or whitespace only")
+        return v.strip()
+
+
+class UpdatePromptRequest(BaseModel):
+    """Request schema for updating a system prompt."""
+
+    name: Optional[str] = Field(
+        default=None,
+        description="New name for the prompt",
+        min_length=1,
+        max_length=100
+    )
+    prompt: Optional[str] = Field(
+        default=None,
+        description="New prompt text",
+        min_length=1,
+        max_length=10000
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="New description",
+        max_length=500
+    )
+    is_active: Optional[bool] = Field(
+        default=None,
+        description="New active status"
+    )
+
+    @field_validator("name", "prompt")
+    @classmethod
+    def validate_not_whitespace(cls, v: Optional[str]) -> Optional[str]:
+        """Ensure fields are not just whitespace if provided."""
+        if v is not None and not v.strip():
+            raise ValueError("Field cannot be empty or whitespace only")
+        return v.strip() if v else None
