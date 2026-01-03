@@ -28,3 +28,6 @@ node_modules/
 claude-progress.txt
 app_spec.txt
 prompts/
+
+# Planning docs
+docs/
