@@ -33,7 +33,10 @@ export function ChatInput({ onSendMessage, onOpenPromptSettings, isStreaming, ha
   }
 
   return (
-    <div className="border-t border-border bg-background p-4">
+    <div
+      className="border-t border-border bg-background p-4"
+      style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+    >
       <form onSubmit={handleSubmit} className="mx-auto max-w-3xl">
         <div className="relative flex items-end gap-2">
           {/* Prompt Settings Button */}

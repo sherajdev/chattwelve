@@ -3,7 +3,8 @@
 import { Plus, Trash2, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 import type { ChatSession } from "@/lib/types"
 import { useState } from "react"
 import Image from "next/image"
@@ -96,11 +97,19 @@ function MobileSidebar(props: SidebarProps) {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="fixed left-4 top-4 z-40 md:hidden">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed left-4 z-40 md:hidden"
+          style={{ top: "max(1rem, env(safe-area-inset-top))" }}
+        >
           <Menu className="h-5 w-5" />
         </Button>
       </SheetTrigger>
       <SheetContent side="left" className="w-60 p-0">
+        <VisuallyHidden>
+          <SheetTitle>Navigation Menu</SheetTitle>
+        </VisuallyHidden>
         <SidebarContent {...props} />
       </SheetContent>
     </Sheet>
