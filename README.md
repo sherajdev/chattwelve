@@ -1,10 +1,12 @@
-# ChatTwelve - Conversational AI Market Data Backend
+# ChatTwelve - Conversational AI Market Data Application
 
-A conversational AI-powered backend that accepts natural language questions about market data, communicates with a TwelveData MCP server to fetch real-time financial information, and returns both human-readable responses and structured JSON data.
+A full-stack conversational AI application for market data queries. Ask questions about stocks, forex, crypto, and commodities in natural language and get real-time responses with data from TwelveData.
 
-## Phase 1 - Backend Foundation
+## Current Status
 
-This is Phase 1 of the ChatTwelve project, focusing on the backend foundation with a CLI test interface. No frontend UI yet.
+- **Phase 1** (Backend) - Complete
+- **Phase 2** (Frontend) - Complete
+- **Phase 3** (Supabase/Auth) - Planned
 
 ## Features
 
@@ -28,16 +30,28 @@ This is Phase 1 of the ChatTwelve project, focusing on the backend foundation wi
 
 ## Technology Stack
 
-- **Language**: Python 3.11+
-- **Framework**: FastAPI
-- **AI Framework**: Pydantic AI with OpenRouter
-- **AI Models**: OpenAI GPT-5.2 (primary), Google Gemini 3 Flash (fallback)
-- **Database**: SQLite (session/cache storage)
-- **External Services**: TwelveData MCP Server, OpenRouter API
+**Backend:**
+- Python 3.11+ with FastAPI
+- Pydantic AI with OpenRouter
+- AI Models: OpenAI GPT-5.2 (primary), Google Gemini 3 Flash (fallback)
+- SQLite for session/cache storage
+
+**Frontend:**
+- Next.js 16 with React 19
+- shadcn/ui component library
+- Tailwind CSS 4
+- TypeScript
+- Playwright for testing
+
+**External Services:**
+- TwelveData MCP Server
+- OpenRouter API
+- Tavily API (web search)
 
 ## Prerequisites
 
 - Python 3.11 or higher
+- Node.js 18 or higher
 - TwelveData MCP Server running
 
 ## Environment Variables
@@ -60,22 +74,34 @@ Copy `.env.example` to `.env` and configure:
 # Make init script executable
 chmod +x init.sh
 
-# Run the setup and start the server
+# Run the setup and start both servers
 ./init.sh
 ```
 
+This will:
+1. Set up Python virtual environment
+2. Install backend and frontend dependencies
+3. Initialize the database
+4. Start backend on http://localhost:8000
+5. Start frontend on http://localhost:3000
+
+Press `Ctrl+C` to stop both servers.
+
 ## Manual Setup
 
+**Backend:**
 ```bash
-# Create virtual environment
 python3 -m venv venv
 source venv/bin/activate
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Start the server
 uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
 ## API Endpoints
@@ -243,7 +269,7 @@ is_healthy, error = await ai_agent_service.health_check()
 
 ```
 chattwelve/
-├── src/
+├── src/                         # Backend (FastAPI)
 │   ├── main.py                  # FastAPI application entry point
 │   ├── api/
 │   │   ├── routes/              # API route handlers
@@ -260,15 +286,34 @@ chattwelve/
 │   │   ├── chat_service.py      # Chat orchestration service
 │   │   ├── query_processor.py   # NLP query parsing
 │   │   └── mcp_client.py        # TwelveData MCP client
-│   ├── database/
-│   │   ├── init_db.py           # Database initialization
-│   │   ├── session_repo.py      # Session repository
-│   │   ├── cache_repo.py        # Cache repository
-│   │   └── prompt_repo.py       # System prompts repository
-│   └── models/                  # Database models
-├── tests/                       # Test suite
+│   └── database/
+│       ├── init_db.py           # Database initialization
+│       ├── session_repo.py      # Session repository
+│       ├── cache_repo.py        # Cache repository
+│       └── prompt_repo.py       # System prompts repository
+├── frontend/                    # Frontend (Next.js)
+│   ├── app/
+│   │   ├── page.tsx             # Main chat interface
+│   │   └── layout.tsx           # App layout
+│   ├── components/              # React components
+│   │   ├── chat-area.tsx
+│   │   ├── chat-header.tsx
+│   │   ├── chat-input.tsx
+│   │   ├── sidebar.tsx
+│   │   ├── prompt-modal.tsx
+│   │   └── ui/                  # shadcn/ui components
+│   ├── lib/
+│   │   ├── api.ts               # Backend API client
+│   │   └── types.ts             # TypeScript types
+│   ├── hooks/
+│   │   └── use-session.ts       # Session management hook
+│   └── tests/                   # Playwright tests
+│       ├── smoke.spec.ts
+│       ├── chat.spec.ts
+│       └── health.spec.ts
+├── tests/                       # Backend test suite
 ├── requirements.txt             # Python dependencies
-├── init.sh                      # Setup script
+├── init.sh                      # Full-stack setup script
 └── README.md
 ```
 
@@ -276,8 +321,19 @@ chattwelve/
 
 ### Running Tests
 
+**Backend (pytest):**
 ```bash
 pytest tests/ -v
+```
+
+**Frontend (Playwright):**
+```bash
+cd frontend
+npm run test              # All tests
+npm run test:smoke        # UI smoke tests
+npm run test:chat         # Chat functionality
+npm run test:health       # API integration
+npm run test:ui           # Interactive UI mode
 ```
 
 ### API Documentation
@@ -290,10 +346,10 @@ Once the server is running, visit:
 
 Private project - All rights reserved
 
-## Phase 2 Preview
+## Roadmap
 
-Phase 2 will add:
-- Next.js frontend with chat UI
-- BetterAuth for authentication
-- Supabase for user storage
-- Full user account management
+### Phase 3 (Planned)
+- Supabase integration for persistent chat history
+- User authentication (BetterAuth)
+- User account management
+- Chat history across sessions

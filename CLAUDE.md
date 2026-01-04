@@ -4,30 +4,52 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ChatTwelve is a conversational AI backend that accepts natural language questions about market data and communicates with a TwelveData MCP server to fetch real-time financial information. Built with FastAPI, it returns both human-readable responses and structured JSON data while maintaining conversation context across sessions.
+ChatTwelve is a full-stack conversational AI application for market data queries. It consists of:
+- **Backend**: FastAPI server that communicates with TwelveData MCP server for real-time financial data
+- **Frontend**: Next.js 16 web app with React 19, shadcn/ui components, and streaming chat interface
 
 ## Commands
 
-### Quick Start
+### Quick Start (Full Stack)
 ```bash
-./init.sh  # Sets up venv, installs deps, initializes DB, starts server
+./init.sh  # Sets up both backend and frontend, starts both servers
 ```
+- Backend: http://localhost:8000
+- Frontend: http://localhost:3000
 
 ### Manual Development
+
+**Backend:**
 ```bash
 source venv/bin/activate
 uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+**Frontend:**
+```bash
+cd frontend
+npm run dev
+```
+
 ### Testing
+
+**Backend Tests:**
 ```bash
 pytest tests/ -v                    # Run pytest suite
 python check_session.py             # Test session functionality
 python check_cache.py               # Test caching
 python check_rate_limit.py          # Test rate limiting
-bash test_rate_limit.sh             # Rate limit shell test
-bash test_long_query.sh             # Long query validation test
-bash test_injection.sh              # Input sanitization test
+```
+
+**Frontend Tests (Playwright):**
+```bash
+cd frontend
+npm run test                        # Run all Playwright tests
+npm run test:smoke                  # Smoke tests only
+npm run test:chat                   # Chat functionality tests
+npm run test:health                 # API health tests
+npm run test:ui                     # Interactive Playwright UI
+npm run test:report                 # View HTML test report
 ```
 
 ### API Endpoints
@@ -38,11 +60,32 @@ bash test_injection.sh              # Input sanitization test
 
 ## Architecture
 
+### Frontend (frontend/)
+
+**Tech Stack:**
+- Next.js 16 with React 19
+- shadcn/ui component library
+- Tailwind CSS 4
+- TypeScript
+
+**Key Files:**
+- `app/page.tsx` - Main chat interface with session management
+- `lib/api.ts` - API client for backend communication
+- `hooks/use-session.ts` - Session management with localStorage persistence
+- `components/` - UI components (Sidebar, ChatArea, ChatInput, PromptModal)
+
+**Frontend Features:**
+- Real-time SSE streaming for chat responses
+- Session persistence via localStorage
+- Health status indicators (API, MCP, AI)
+- System prompt management modal
+- Responsive sidebar with chat history
+
 ### Request Flow
 
 **AI Agent Mode (default, USE_AI_AGENT=true):**
 ```
-Client → FastAPI Router → ChatService
+Frontend → Next.js → API Client → FastAPI Router → ChatService
                             ├→ SessionRepository (session validation)
                             ├→ CacheRepository (cache lookup/store)
                             └→ AIAgentService (autonomous tool calling)
