@@ -1,6 +1,18 @@
-# ChatTwelve - Conversational AI Market Data Application
+<p align="center">
+  <img src="screenshots/logo-256.png" alt="ChatTwelve Logo" width="128">
+</p>
 
-A full-stack conversational AI application for market data queries. Ask questions about stocks, forex, crypto, and commodities in natural language and get real-time responses with data from TwelveData.
+<h1 align="center">ChatTwelve</h1>
+
+<p align="center">
+  <strong>Conversational AI Market Data Application</strong>
+</p>
+
+<p align="center">
+  A full-stack conversational AI application for market data queries. Ask questions about stocks, forex, crypto, and commodities in natural language and get real-time responses with data from TwelveData.
+</p>
+
+<p align="center">
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green)
@@ -10,6 +22,8 @@ A full-stack conversational AI application for market data queries. Ask question
 ![shadcn/ui](https://img.shields.io/badge/shadcn%2Fui-latest-cyan)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38B2AC)
 ![Pydantic AI](https://img.shields.io/badge/Pydantic_AI-latest-red)
+
+</p>
 
 ## Preview
 
