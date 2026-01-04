@@ -205,11 +205,11 @@ curl -X POST http://localhost:8000/api/chat \
 ### Success Response
 ```json
 {
-  "answer": "The current gold price is $2,045.30 per ounce, up 0.35% today.",
+  "answer": "The current gold price is $4,045.30 per ounce, up 0.35% today.",
   "type": "price",
   "data": {
     "symbol": "XAU/USD",
-    "price": 2045.30,
+    "price": 4045.30,
     "change_percent": 0.35
   },
   "timestamp": "2025-01-01T12:00:00Z",
