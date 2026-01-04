@@ -63,50 +63,44 @@ test.describe('README Screenshots', () => {
   })
 
   test('capture chat with sample conversation', async ({ page }) => {
+    // Increase timeout for this test since AI responses can take a while
+    test.setTimeout(120000)
+
     await page.goto('/')
 
     // Wait for the app to load
     await page.waitForSelector('[data-testid="chat-input"], textarea, input[type="text"]', { timeout: 10000 })
 
-    // Add sample messages via JavaScript to simulate a conversation
-    await page.evaluate(() => {
-      // Find the chat area and inject sample messages
-      const chatArea = document.querySelector('[class*="flex-1"][class*="overflow-y-auto"]')
-      if (chatArea) {
-        chatArea.innerHTML = `
-          <div style="padding: 1rem; display: flex; flex-direction: column; gap: 1rem;">
-            <!-- User message -->
-            <div style="display: flex; justify-content: flex-end;">
-              <div style="background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); padding: 0.75rem 1rem; border-radius: 1rem; max-width: 70%;">
-                What is the current gold price?
-              </div>
-            </div>
-            <!-- Assistant message -->
-            <div style="display: flex; justify-content: flex-start;">
-              <div style="background: hsl(var(--muted)); color: hsl(var(--foreground)); padding: 0.75rem 1rem; border-radius: 1rem; max-width: 70%;">
-                <p style="margin: 0;">The current gold price is <strong>$2,634.50</strong> per ounce (XAU/USD).</p>
-                <p style="margin: 0.5rem 0 0 0; font-size: 0.875rem; opacity: 0.7;">Price is up 0.42% from yesterday's close.</p>
-              </div>
-            </div>
-            <!-- User message -->
-            <div style="display: flex; justify-content: flex-end;">
-              <div style="background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); padding: 0.75rem 1rem; border-radius: 1rem; max-width: 70%;">
-                Show me the RSI for Bitcoin
-              </div>
-            </div>
-            <!-- Assistant message -->
-            <div style="display: flex; justify-content: flex-start;">
-              <div style="background: hsl(var(--muted)); color: hsl(var(--foreground)); padding: 0.75rem 1rem; border-radius: 1rem; max-width: 70%;">
-                <p style="margin: 0;">The current <strong>RSI (14-period)</strong> for BTC/USD is <strong>58.3</strong>.</p>
-                <p style="margin: 0.5rem 0 0 0; font-size: 0.875rem;">This indicates a neutral market condition, neither overbought nor oversold.</p>
-              </div>
-            </div>
-          </div>
-        `
-      }
-    })
+    // Wait for session to initialize
+    await page.waitForTimeout(2000)
 
-    await page.waitForTimeout(500)
+    // Find the textarea and type a message
+    const textarea = page.locator('textarea').first()
+    await textarea.fill('What is the current gold price?')
+
+    // Find and click the send button (or press Enter)
+    const sendButton = page.locator('button[type="submit"]').first()
+    if (await sendButton.isVisible()) {
+      await sendButton.click()
+    } else {
+      await textarea.press('Enter')
+    }
+
+    // Wait for the AI response to complete (look for assistant message that's not streaming)
+    // The streaming message has id="streaming", so we wait until it's replaced with a final message
+    await page.waitForTimeout(3000) // Initial wait for response to start
+
+    // Wait for streaming to complete - check that no "streaming" element exists
+    // and that there's at least one assistant message
+    await page.waitForFunction(() => {
+      const messages = document.querySelectorAll('[class*="message"], [class*="Message"]')
+      // Look for any text content indicating a response (price, dollar sign, gold, etc.)
+      const pageText = document.body.innerText
+      return pageText.includes('$') || pageText.includes('gold') || pageText.includes('Gold') || pageText.includes('XAU')
+    }, { timeout: 60000 })
+
+    // Extra wait to ensure streaming is fully complete
+    await page.waitForTimeout(5000)
 
     // Take screenshot
     await page.screenshot({
