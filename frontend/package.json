@@ -12,7 +12,8 @@
     "test:smoke": "playwright test tests/smoke.spec.ts",
     "test:chat": "playwright test tests/chat.spec.ts",
     "test:health": "playwright test tests/health.spec.ts",
-    "test:report": "playwright show-report"
+    "test:report": "playwright show-report",
+    "screenshots": "playwright test tests/screenshots.spec.ts --project=chromium"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

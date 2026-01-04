@@ -2,6 +2,40 @@
 
 A full-stack conversational AI application for market data queries. Ask questions about stocks, forex, crypto, and commodities in natural language and get real-time responses with data from TwelveData.
 
+![Python](https://img.shields.io/badge/Python-3.11+-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green)
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
+![React](https://img.shields.io/badge/React-19-61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![shadcn/ui](https://img.shields.io/badge/shadcn%2Fui-latest-cyan)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38B2AC)
+![Pydantic AI](https://img.shields.io/badge/Pydantic_AI-latest-red)
+
+## Preview
+
+<p align="center">
+  <img src="screenshots/dark-mode.png" alt="Dark Mode" width="45%">
+  <img src="screenshots/light-mode.png" alt="Light Mode" width="45%">
+</p>
+
+### Chat Interface
+
+<p align="center">
+  <img src="screenshots/chat-conversation.png" alt="Chat Conversation" width="80%">
+</p>
+
+### System Prompts Management
+
+<p align="center">
+  <img src="screenshots/prompt-modal.png" alt="System Prompt Modal" width="80%">
+</p>
+
+### Mobile View
+
+<p align="center">
+  <img src="screenshots/mobile-view.png" alt="Mobile View" width="40%">
+</p>
+
 ## Current Status
 
 - **Phase 1** (Backend) - Complete
