@@ -279,3 +279,12 @@ else:
 # Health check
 is_healthy, error = await ai_service.health_check()
 ```
+
+## Sub-Agents (Phase 3)
+
+For Phase 3 implementation, specialized agents are available in `.claude/agents/`:
+
+- **betterauth-agent** - "Use the betterauth-agent approach" for auth tasks
+- **supabase-agent** - "Use the supabase-agent approach" for database tasks  
+
+Skills with implementation patterns are in `.claude/skills/`.
