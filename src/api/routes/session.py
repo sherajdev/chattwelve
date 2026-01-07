@@ -9,7 +9,7 @@ from src.core.config import settings
 from src.core.logging import logger
 from src.database.session_repo import session_repo
 from src.api.schemas.requests import CreateSessionRequest
-from src.api.schemas.responses import SessionResponse, SessionDeleteResponse
+from src.api.schemas.responses import SessionResponse, SessionDeleteResponse, SessionListResponse, SessionInfo
 
 
 router = APIRouter(prefix="/api/session", tags=["Session"])
@@ -22,11 +22,14 @@ async def create_session(request: CreateSessionRequest = None):
 
     Returns a unique session ID that should be used for subsequent chat requests.
     Sessions expire after the configured timeout period.
+
+    Optionally accepts a user_id to associate the session with an authenticated user.
     """
     metadata = request.metadata if request else None
+    user_id = request.user_id if request else None
 
     try:
-        session = await session_repo.create(metadata=metadata)
+        session = await session_repo.create(metadata=metadata, user_id=user_id)
 
         # Calculate expiration time
         expires_at = session.created_at + timedelta(minutes=settings.SESSION_TIMEOUT_MINUTES)
@@ -82,6 +85,52 @@ async def delete_session(session_id: str):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete session"
+        )
+
+
+@router.get("/user/{user_id}", response_model=SessionListResponse)
+async def list_user_sessions(user_id: str, limit: int = 50):
+    """
+    Get all sessions for a specific user.
+
+    Returns a list of sessions ordered by last activity (newest first).
+    """
+    try:
+        sessions = await session_repo.list_by_user(user_id, limit)
+
+        session_infos = []
+        for s in sessions:
+            # Extract title from metadata or context
+            title = s.metadata.get("title") if s.metadata else None
+            if not title and s.context:
+                # Use first user message as title
+                for msg in s.context:
+                    if msg.get("role") == "user":
+                        content = msg.get("content", "")
+                        title = content[:50] + "..." if len(content) > 50 else content
+                        break
+            if not title:
+                title = "New Chat"
+
+            session_infos.append(SessionInfo(
+                session_id=s.id,
+                user_id=s.user_id,
+                created_at=s.created_at.isoformat() + "Z",
+                last_activity=s.last_activity.isoformat() + "Z",
+                title=title,
+                message_count=len(s.context)
+            ))
+
+        return SessionListResponse(
+            sessions=session_infos,
+            count=len(session_infos)
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to list sessions for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list sessions"
         )
 
 

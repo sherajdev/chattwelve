@@ -26,6 +26,7 @@ async def init_database() -> None:
         await db.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id TEXT PRIMARY KEY,
+                user_id TEXT,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 last_activity DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 context TEXT DEFAULT '[]',
@@ -50,19 +51,42 @@ async def init_database() -> None:
         await db.execute("""
             CREATE TABLE IF NOT EXISTS system_prompts (
                 id TEXT PRIMARY KEY,
-                name TEXT NOT NULL UNIQUE,
+                user_id TEXT,
+                name TEXT NOT NULL,
                 prompt TEXT NOT NULL,
                 description TEXT,
                 is_active BOOLEAN DEFAULT 0,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, name)
             )
         """)
+
+        # Migration: Add user_id column to existing sessions table if missing
+        cursor = await db.execute("PRAGMA table_info(sessions)")
+        columns = await cursor.fetchall()
+        column_names = [col[1] for col in columns]
+        if "user_id" not in column_names:
+            logger.info("Migrating sessions table: adding user_id column")
+            await db.execute("ALTER TABLE sessions ADD COLUMN user_id TEXT")
+
+        # Migration: Add user_id column to existing system_prompts table if missing
+        cursor = await db.execute("PRAGMA table_info(system_prompts)")
+        columns = await cursor.fetchall()
+        column_names = [col[1] for col in columns]
+        if "user_id" not in column_names:
+            logger.info("Migrating system_prompts table: adding user_id column")
+            await db.execute("ALTER TABLE system_prompts ADD COLUMN user_id TEXT")
 
         # Create indexes for better query performance
         await db.execute("""
             CREATE INDEX IF NOT EXISTS idx_sessions_last_activity
             ON sessions(last_activity)
+        """)
+
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_sessions_user_id
+            ON sessions(user_id)
         """)
 
         await db.execute("""
@@ -73,6 +97,11 @@ async def init_database() -> None:
         await db.execute("""
             CREATE INDEX IF NOT EXISTS idx_system_prompts_active
             ON system_prompts(is_active)
+        """)
+
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_system_prompts_user_id
+            ON system_prompts(user_id)
         """)
 
         # Insert default system prompt if none exists

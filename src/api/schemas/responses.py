@@ -120,6 +120,24 @@ class SessionDeleteResponse(BaseModel):
     session_id: str = Field(..., description="Deleted session ID")
 
 
+class SessionInfo(BaseModel):
+    """Session info for list response."""
+
+    session_id: str = Field(..., description="Unique session identifier")
+    user_id: Optional[str] = Field(None, description="Associated user ID")
+    created_at: str = Field(..., description="ISO 8601 creation timestamp")
+    last_activity: str = Field(..., description="ISO 8601 last activity timestamp")
+    title: Optional[str] = Field(None, description="Session title from metadata")
+    message_count: int = Field(0, description="Number of messages in session")
+
+
+class SessionListResponse(BaseModel):
+    """List of sessions response."""
+
+    sessions: List[SessionInfo] = Field(..., description="List of sessions")
+    count: int = Field(..., description="Total number of sessions")
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
 
@@ -170,6 +188,7 @@ class PromptResponse(BaseModel):
     """System prompt response."""
 
     id: str = Field(..., description="Prompt ID")
+    user_id: Optional[str] = Field(None, description="User ID (null for system defaults)")
     name: str = Field(..., description="Prompt name")
     prompt: str = Field(..., description="System prompt text")
     description: Optional[str] = Field(None, description="Prompt description")

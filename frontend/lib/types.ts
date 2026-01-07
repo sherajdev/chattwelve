@@ -20,6 +20,7 @@ export interface SystemPrompt {
   isActive: boolean
   createdAt: Date
   updatedAt: Date
+  userId?: string  // null for system defaults, user ID for user-created prompts
 }
 
 export interface HealthStatus {

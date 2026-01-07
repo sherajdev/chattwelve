@@ -7,10 +7,12 @@ import { ChatArea } from "@/components/chat-area"
 import { ChatInput } from "@/components/chat-input"
 import { PromptModal } from "@/components/prompt-modal"
 import { useSession } from "@/hooks/use-session"
-import { chatApi, promptsApi, healthApi } from "@/lib/api"
+import { useAuth } from "@/components/auth/auth-provider"
+import { chatApi, promptsApi, healthApi, sessionApi } from "@/lib/api"
 import type { Message, ChatSession, SystemPrompt, HealthStatus } from "@/lib/types"
 
 export default function Home() {
+  const { session: authSession } = useAuth()
   const { sessionId, isLoading: sessionLoading, createNewSession } = useSession()
 
   // State
@@ -27,19 +29,43 @@ export default function Home() {
     ai: "down",
   })
 
-  // Load prompts on mount
+  // Load user's sessions and prompts when authenticated
   useEffect(() => {
-    const loadPrompts = async () => {
+    const userId = authSession?.user?.id
+    if (!userId) return
+
+    const loadUserData = async () => {
       try {
-        const response = await promptsApi.list()
+        // Load user's sessions
+        const sessionsResponse = await sessionApi.listByUser(userId)
+        const loadedSessions: ChatSession[] = sessionsResponse.sessions.map((s) => ({
+          id: s.session_id,
+          title: s.title || "New Chat",
+          createdAt: new Date(s.created_at),
+          lastMessageAt: new Date(s.last_activity),
+        }))
+        setSessions(loadedSessions)
+
+        // If we have sessions, set the most recent one as active
+        if (loadedSessions.length > 0 && !activeSessionId) {
+          setActiveSessionId(loadedSessions[0].id)
+        }
+      } catch (error) {
+        console.error("Failed to load sessions:", error)
+      }
+
+      try {
+        // Load prompts (system defaults + user's custom prompts)
+        const promptsResponse = await promptsApi.list(userId)
         setPrompts(
-          response.prompts.map((p) => ({
+          promptsResponse.prompts.map((p) => ({
             id: p.id,
             name: p.name,
             content: p.prompt,
             isActive: p.is_active,
             createdAt: new Date(p.created_at),
             updatedAt: new Date(p.updated_at),
+            userId: p.user_id,
           }))
         )
       } catch (error) {
@@ -47,8 +73,8 @@ export default function Home() {
       }
     }
 
-    loadPrompts()
-  }, [])
+    loadUserData()
+  }, [authSession?.user?.id])
 
   // Check health status on mount and periodically
   useEffect(() => {
@@ -71,9 +97,10 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [])
 
-  // Set active session when session is loaded
+  // Set active session when session hook provides a session
+  // This handles the case where user has no existing sessions
   useEffect(() => {
-    if (sessionId && !activeSessionId) {
+    if (sessionId && !activeSessionId && sessions.length === 0) {
       setActiveSessionId(sessionId)
       // Add initial session to list if not exists
       setSessions((prev) => {
@@ -89,12 +116,14 @@ export default function Home() {
         ]
       })
     }
-  }, [sessionId, activeSessionId])
+  }, [sessionId, activeSessionId, sessions.length])
 
   // Handlers
   const handleNewChat = useCallback(async () => {
     try {
-      const newSessionId = await createNewSession()
+      // Pass authenticated user ID to associate session with user
+      const userId = authSession?.user?.id
+      const newSessionId = await createNewSession(userId)
       const newSession: ChatSession = {
         id: newSessionId,
         title: "New Chat",
@@ -107,7 +136,7 @@ export default function Home() {
     } catch (error) {
       console.error("Failed to create new chat:", error)
     }
-  }, [createNewSession])
+  }, [createNewSession, authSession])
 
   const handleSelectSession = useCallback((id: string) => {
     setActiveSessionId(id)
@@ -278,7 +307,12 @@ export default function Home() {
 
   const handleCreatePrompt = useCallback(async (name: string, content: string) => {
     try {
-      const response = await promptsApi.create({ name, prompt: content })
+      const userId = authSession?.user?.id
+      const response = await promptsApi.create({ 
+        name, 
+        prompt: content,
+        user_id: userId  // Associate prompt with current user
+      })
       const newPrompt: SystemPrompt = {
         id: response.id,
         name: response.name,
@@ -291,7 +325,7 @@ export default function Home() {
     } catch (error) {
       console.error("Failed to create prompt:", error)
     }
-  }, [])
+  }, [authSession?.user?.id])
 
   const handleUpdatePrompt = useCallback(async (id: string, name: string, content: string) => {
     try {

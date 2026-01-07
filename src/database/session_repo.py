@@ -17,6 +17,7 @@ from src.core.logging import logger
 class Session:
     """Session data model."""
     id: str
+    user_id: Optional[str]
     created_at: datetime
     last_activity: datetime
     context: List[Dict[str, Any]]
@@ -31,12 +32,13 @@ class SessionRepository:
     def __init__(self, db_path: str = None):
         self.db_path = db_path or settings.DATABASE_PATH
 
-    async def create(self, metadata: Optional[Dict[str, Any]] = None) -> Session:
+    async def create(self, metadata: Optional[Dict[str, Any]] = None, user_id: Optional[str] = None) -> Session:
         """
         Create a new session.
 
         Args:
             metadata: Optional metadata to associate with session
+            user_id: Optional authenticated user ID
 
         Returns:
             Created session object
@@ -48,11 +50,12 @@ class SessionRepository:
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
                 """
-                INSERT INTO sessions (id, created_at, last_activity, context, request_count, request_window_start, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO sessions (id, user_id, created_at, last_activity, context, request_count, request_window_start, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session_id,
+                    user_id,
                     now.isoformat(),
                     now.isoformat(),
                     "[]",
@@ -63,10 +66,11 @@ class SessionRepository:
             )
             await db.commit()
 
-        logger.info(f"Created session: {session_id[:8]}...")
+        logger.info(f"Created session: {session_id[:8]}... (User: {user_id or 'Guest'})")
 
         return Session(
             id=session_id,
+            user_id=user_id,
             created_at=now,
             last_activity=now,
             context=[],
@@ -97,8 +101,15 @@ class SessionRepository:
             if not row:
                 return None
 
+            # Handle case where user_id might not exist in old DBs
+            try:
+                user_id = row["user_id"]
+            except (IndexError, KeyError):
+                user_id = None
+
             session = Session(
                 id=row["id"],
+                user_id=user_id,
                 created_at=datetime.fromisoformat(row["created_at"]),
                 last_activity=datetime.fromisoformat(row["last_activity"]),
                 context=json.loads(row["context"]),
@@ -255,6 +266,49 @@ class SessionRepository:
             )
             row = await cursor.fetchone()
             return row is not None
+
+    async def list_by_user(self, user_id: str, limit: int = 50) -> List[Session]:
+        """
+        Get all sessions for a specific user.
+
+        Args:
+            user_id: User ID to filter by
+            limit: Maximum number of sessions to return
+
+        Returns:
+            List of sessions ordered by last activity (newest first)
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT * FROM sessions 
+                WHERE user_id = ? 
+                ORDER BY last_activity DESC 
+                LIMIT ?
+                """,
+                (user_id, limit)
+            )
+            rows = await cursor.fetchall()
+
+            sessions = []
+            for row in rows:
+                session = Session(
+                    id=row["id"],
+                    user_id=row["user_id"],
+                    created_at=datetime.fromisoformat(row["created_at"]),
+                    last_activity=datetime.fromisoformat(row["last_activity"]),
+                    context=json.loads(row["context"]),
+                    request_count=row["request_count"],
+                    request_window_start=datetime.fromisoformat(row["request_window_start"]),
+                    metadata=json.loads(row["metadata"])
+                )
+                # Skip expired sessions
+                if not self.is_expired(session):
+                    sessions.append(session)
+
+            logger.info(f"Found {len(sessions)} sessions for user: {user_id[:8]}...")
+            return sessions
 
 
 # Global repository instance

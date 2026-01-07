@@ -4,7 +4,9 @@ import { Plus, Trash2, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
+import { Separator } from "@/components/ui/separator"
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
+import { UserMenu } from "@/components/auth/user-menu"
 import type { ChatSession } from "@/lib/types"
 import { useState } from "react"
 import Image from "next/image"
@@ -71,6 +73,11 @@ function SidebarContent({ sessions, activeSessionId, onNewChat, onSelectSession,
           ))}
         </div>
       </ScrollArea>
+
+      {/* User Menu at bottom */}
+      <div className="mt-auto border-t border-sidebar-border p-2">
+        <UserMenu />
+      </div>
     </div>
   )
 }

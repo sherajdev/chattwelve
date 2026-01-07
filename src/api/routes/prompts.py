@@ -2,6 +2,7 @@
 System prompts management routes for ChatTwelve API.
 """
 
+from typing import Optional
 from fastapi import APIRouter, HTTPException, status
 
 from src.core.logging import logger
@@ -24,19 +25,24 @@ def _prompt_to_response(prompt) -> PromptResponse:
         description=prompt.description,
         is_active=prompt.is_active,
         created_at=prompt.created_at.isoformat() + "Z",
-        updated_at=prompt.updated_at.isoformat() + "Z"
+        updated_at=prompt.updated_at.isoformat() + "Z",
+        user_id=prompt.user_id
     )
 
 
 @router.get("/active", response_model=PromptResponse)
-async def get_active_prompt():
+async def get_active_prompt(user_id: Optional[str] = None):
     """
     Get the currently active system prompt.
 
-    Returns the system prompt that is currently being used by the AI.
+    For authenticated users, returns their active prompt or falls back to the system default.
+    For unauthenticated users, returns only the system default prompt.
+
+    Args:
+        user_id: Optional user ID to get user-specific active prompt
     """
     try:
-        prompt = await prompt_repo.get_active_prompt()
+        prompt = await prompt_repo.get_active_prompt(user_id=user_id)
 
         if not prompt:
             raise HTTPException(
@@ -57,14 +63,18 @@ async def get_active_prompt():
 
 
 @router.get("", response_model=PromptListResponse)
-async def list_prompts():
+async def list_prompts(user_id: Optional[str] = None):
     """
-    Get all system prompts.
+    Get all system prompts for a user.
 
-    Returns a list of all system prompts in the database.
+    For authenticated users, returns system defaults + user's custom prompts.
+    For unauthenticated users, returns only system default prompts.
+
+    Args:
+        user_id: Optional user ID to include user-specific prompts
     """
     try:
-        prompts = await prompt_repo.list_all()
+        prompts = await prompt_repo.list_all(user_id=user_id)
 
         return PromptListResponse(
             prompts=[_prompt_to_response(p) for p in prompts],
@@ -114,14 +124,14 @@ async def create_prompt(request: CreatePromptRequest):
     Create a new system prompt.
 
     Args:
-        request: Prompt creation request with name, prompt text, and optional description
+        request: Prompt creation request with name, prompt text, optional description, and optional user_id
 
     Returns:
         The created system prompt
     """
     try:
-        # Check if name already exists
-        existing = await prompt_repo.get_by_name(request.name)
+        # Check if name already exists for this user
+        existing = await prompt_repo.get_by_name(request.name, user_id=request.user_id)
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -132,7 +142,8 @@ async def create_prompt(request: CreatePromptRequest):
             name=request.name,
             prompt=request.prompt,
             description=request.description,
-            is_active=request.is_active
+            is_active=request.is_active,
+            user_id=request.user_id
         )
 
         return _prompt_to_response(prompt)
@@ -160,9 +171,17 @@ async def update_prompt(prompt_id: str, request: UpdatePromptRequest):
         The updated system prompt
     """
     try:
+        # Get existing prompt to check user_id for name uniqueness
+        existing_prompt = await prompt_repo.get_by_id(prompt_id)
+        if not existing_prompt:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Prompt not found: {prompt_id}"
+            )
+
         # Check if name already exists (if changing name)
         if request.name is not None:
-            existing = await prompt_repo.get_by_name(request.name)
+            existing = await prompt_repo.get_by_name(request.name, user_id=existing_prompt.user_id)
             if existing and existing.id != prompt_id:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,

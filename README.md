@@ -54,7 +54,7 @@
 
 - **Phase 1** (Backend) - Complete
 - **Phase 2** (Frontend) - Complete
-- **Phase 3** (Supabase/Auth) - Planned
+- **Phase 3** (Supabase/Auth) - In Progress
 
 ## Features
 
@@ -75,6 +75,8 @@
 - **Intelligent Caching**: Reduce API calls with smart caching
 - **Rate Limiting**: Protect API quotas with per-session rate limiting
 - **Streaming Responses**: SSE support for real-time response streaming
+- **User Authentication**: BetterAuth with email/password login (Phase 3)
+- **User-Session Association**: Chat sessions linked to authenticated users
 
 ## Technology Stack
 
@@ -89,6 +91,7 @@
 - shadcn/ui component library
 - Tailwind CSS 4
 - TypeScript
+- BetterAuth (authentication)
 - Playwright for testing
 
 **External Services:**
@@ -158,7 +161,8 @@ npm run dev
 - `POST /api/chat` - Send natural language question, receive AI response with market data
 
 ### Sessions
-- `POST /api/session` - Create new conversation session
+- `POST /api/session` - Create new conversation session (accepts optional `user_id`)
+- `GET /api/session/user/{user_id}` - List sessions for a user
 - `DELETE /api/session/{session_id}` - End conversation session
 
 ### System Prompts
@@ -342,8 +346,16 @@ chattwelve/
 ├── frontend/                    # Frontend (Next.js)
 │   ├── app/
 │   │   ├── page.tsx             # Main chat interface
-│   │   └── layout.tsx           # App layout
+│   │   ├── layout.tsx           # App layout
+│   │   ├── login/page.tsx       # Login page
+│   │   ├── signup/page.tsx      # Signup page
+│   │   └── api/auth/            # BetterAuth API routes
 │   ├── components/              # React components
+│   │   ├── auth/                # Auth components
+│   │   │   ├── auth-provider.tsx
+│   │   │   ├── login-form.tsx
+│   │   │   ├── signup-form.tsx
+│   │   │   └── user-menu.tsx
 │   │   ├── chat-area.tsx
 │   │   ├── chat-header.tsx
 │   │   ├── chat-input.tsx
@@ -352,12 +364,16 @@ chattwelve/
 │   │   └── ui/                  # shadcn/ui components
 │   ├── lib/
 │   │   ├── api.ts               # Backend API client
+│   │   ├── auth.ts              # BetterAuth server config
+│   │   ├── auth-client.ts       # BetterAuth client
 │   │   └── types.ts             # TypeScript types
 │   ├── hooks/
 │   │   └── use-session.ts       # Session management hook
+│   ├── middleware.ts            # Route protection
 │   └── tests/                   # Playwright tests
 │       ├── smoke.spec.ts
 │       ├── chat.spec.ts
+│       ├── auth.spec.ts         # Auth tests
 │       └── health.spec.ts
 ├── tests/                       # Backend test suite
 ├── requirements.txt             # Python dependencies
@@ -396,8 +412,12 @@ Private project - All rights reserved
 
 ## Roadmap
 
-### Phase 3 (Planned)
-- Supabase integration for persistent chat history
-- User authentication (BetterAuth)
-- User account management
-- Chat history across sessions
+### Phase 3 (In Progress)
+- [x] BetterAuth integration for user authentication
+- [x] Login/Signup pages with email/password
+- [x] Protected routes with Next.js middleware
+- [x] User-session association in backend
+- [x] User-specific session listing API
+- [ ] Supabase PostgreSQL database setup
+- [ ] Persistent chat history
+- [ ] User settings and preferences

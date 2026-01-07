@@ -50,6 +50,10 @@ class CreateSessionRequest(BaseModel):
         default=None,
         description="Optional metadata to associate with the session"
     )
+    user_id: Optional[str] = Field(
+        default=None,
+        description="Optional authenticated user ID to associate with the session"
+    )
 
 
 class CreatePromptRequest(BaseModel):
@@ -75,6 +79,10 @@ class CreatePromptRequest(BaseModel):
     is_active: bool = Field(
         default=False,
         description="Whether this should be the active prompt"
+    )
+    user_id: Optional[str] = Field(
+        default=None,
+        description="Optional user ID to associate prompt with a specific user"
     )
 
     @field_validator("name", "prompt")

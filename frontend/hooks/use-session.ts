@@ -48,12 +48,13 @@ export function useSession() {
   }, [])
 
   // Create a new session (for "New Chat" functionality)
-  const createNewSession = useCallback(async () => {
+  // Accepts optional userId to associate session with authenticated user
+  const createNewSession = useCallback(async (userId?: string) => {
     setIsLoading(true)
     setError(null)
 
     try {
-      const session = await sessionApi.create()
+      const session = await sessionApi.create(userId)
       localStorage.setItem(SESSION_KEY, session.session_id)
       setSessionId(session.session_id)
       return session.session_id

@@ -11,6 +11,20 @@ export interface SessionResponse {
   expires_at: string
 }
 
+export interface SessionInfo {
+  session_id: string
+  user_id?: string
+  created_at: string
+  last_activity: string
+  title?: string
+  message_count: number
+}
+
+export interface SessionListResponse {
+  sessions: SessionInfo[]
+  count: number
+}
+
 export interface ChatResponse {
   answer: string
   query_type?: string
@@ -28,6 +42,7 @@ export interface ChatResponse {
 
 export interface PromptResponse {
   id: string
+  user_id?: string
   name: string
   prompt: string
   description?: string
@@ -110,10 +125,14 @@ async function request<T>(
 
 // Session API
 export const sessionApi = {
-  create: async (metadata?: Record<string, unknown>): Promise<SessionResponse> => {
+  create: async (userId?: string, metadata?: Record<string, unknown>): Promise<SessionResponse> => {
+    const body: { user_id?: string; metadata?: Record<string, unknown> } = {}
+    if (userId) body.user_id = userId
+    if (metadata) body.metadata = metadata
+    
     return request<SessionResponse>('/api/session', {
       method: 'POST',
-      body: JSON.stringify(metadata ? { metadata } : {}),
+      body: JSON.stringify(body),
     })
   },
 
@@ -125,6 +144,10 @@ export const sessionApi = {
     return request(`/api/session/${sessionId}`, {
       method: 'DELETE',
     })
+  },
+
+  listByUser: async (userId: string, limit: number = 50): Promise<SessionListResponse> => {
+    return request<SessionListResponse>(`/api/session/user/${userId}?limit=${limit}`)
   },
 }
 
@@ -216,12 +239,14 @@ export const chatApi = {
 
 // Prompts API
 export const promptsApi = {
-  list: async (): Promise<PromptListResponse> => {
-    return request<PromptListResponse>('/api/prompts')
+  list: async (userId?: string): Promise<PromptListResponse> => {
+    const params = userId ? `?user_id=${userId}` : ''
+    return request<PromptListResponse>(`/api/prompts${params}`)
   },
 
-  getActive: async (): Promise<PromptResponse> => {
-    return request<PromptResponse>('/api/prompts/active')
+  getActive: async (userId?: string): Promise<PromptResponse> => {
+    const params = userId ? `?user_id=${userId}` : ''
+    return request<PromptResponse>(`/api/prompts/active${params}`)
   },
 
   get: async (promptId: string): Promise<PromptResponse> => {
@@ -233,6 +258,7 @@ export const promptsApi = {
     prompt: string
     description?: string
     is_active?: boolean
+    user_id?: string
   }): Promise<PromptResponse> => {
     return request<PromptResponse>('/api/prompts', {
       method: 'POST',
