@@ -14,6 +14,8 @@ import type { Message, ChatSession, SystemPrompt, HealthStatus } from "@/lib/typ
 export default function Home() {
   const { session: authSession } = useAuth()
   const userId = authSession?.user?.id
+  const userEmail = authSession?.user?.email
+  const userName = authSession?.user?.name
   const {
     sessionId,
     sessions: hookSessions,
@@ -23,7 +25,7 @@ export default function Home() {
     switchSession,
     deleteSession,
     refreshSessions,
-  } = useSession({ userId })
+  } = useSession({ userId, userEmail, userName })
 
   // State
   const [messages, setMessages] = useState<Message[]>([])

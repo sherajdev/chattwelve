@@ -57,7 +57,10 @@ function SidebarContent({ sessions, activeSessionId, onNewChat, onSelectSession,
                   : "text-sidebar-foreground hover:bg-sidebar-accent/50"
               }`}
             >
-              <button onClick={() => onSelectSession(session.id)} className="flex-1 truncate text-left">
+              <button
+                onClick={() => onSelectSession(session.id)}
+                className="min-w-0 flex-1 truncate text-left"
+              >
                 {session.title}
               </button>
               <button
@@ -65,7 +68,7 @@ function SidebarContent({ sessions, activeSessionId, onNewChat, onSelectSession,
                   e.stopPropagation()
                   onDeleteSession(session.id)
                 }}
-                className="opacity-0 transition-opacity group-hover:opacity-100"
+                className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
               >
                 <Trash2 className="h-3.5 w-3.5 text-sidebar-foreground/60 hover:text-destructive" />
               </button>

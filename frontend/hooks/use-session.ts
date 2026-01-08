@@ -1,16 +1,18 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { sessionApi, persistentChatApi, ChatSessionResponse } from "@/lib/api"
+import { sessionApi, persistentChatApi, profileApi, ChatSessionResponse } from "@/lib/api"
 
 const SESSION_KEY = "chattwelve_session_id"
 
 interface UseSessionOptions {
   userId?: string | null
+  userEmail?: string | null
+  userName?: string | null
 }
 
 export function useSession(options: UseSessionOptions = {}) {
-  const { userId } = options
+  const { userId, userEmail, userName } = options
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sessions, setSessions] = useState<ChatSessionResponse[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -28,6 +30,23 @@ export function useSession(options: UseSessionOptions = {}) {
     }
   }, [userId])
 
+  // Ensure profile exists before creating sessions
+  const ensureProfile = useCallback(async () => {
+    if (!userId || !userEmail) return
+
+    try {
+      await profileApi.sync({
+        user_id: userId,
+        email: userEmail,
+        display_name: userName || null,
+        avatar_url: null,
+      })
+    } catch (err) {
+      console.error("Failed to sync profile:", err)
+      // Don't throw - we'll let session creation fail with a clearer error
+    }
+  }, [userId, userEmail, userName])
+
   // Initialize session on mount
   useEffect(() => {
     const initSession = async () => {
@@ -35,8 +54,12 @@ export function useSession(options: UseSessionOptions = {}) {
       setError(null)
 
       try {
-        if (userId) {
+        if (userId && userEmail) {
           // Authenticated user - use PostgreSQL sessions
+
+          // First, ensure profile exists (fallback for if server-side sync failed)
+          await ensureProfile()
+
           await loadSessions()
 
           // Check for existing session in localStorage
@@ -44,7 +67,7 @@ export function useSession(options: UseSessionOptions = {}) {
           if (storedSessionId) {
             // Verify it's a valid session for this user
             try {
-              const messages = await persistentChatApi.getMessages(userId, storedSessionId)
+              await persistentChatApi.getMessages(userId, storedSessionId)
               setSessionId(storedSessionId)
               setIsLoading(false)
               return
@@ -59,6 +82,9 @@ export function useSession(options: UseSessionOptions = {}) {
           localStorage.setItem(SESSION_KEY, session.id)
           setSessionId(session.id)
           await loadSessions()
+        } else if (userId && !userEmail) {
+          // userId but no email - wait for auth to fully load
+          return
         } else {
           // Guest user - use SQLite sessions (legacy)
           const storedSessionId = localStorage.getItem(SESSION_KEY)
@@ -86,7 +112,7 @@ export function useSession(options: UseSessionOptions = {}) {
     }
 
     initSession()
-  }, [userId, loadSessions])
+  }, [userId, userEmail, loadSessions, ensureProfile])
 
   // Create a new session
   const createNewSession = useCallback(async () => {
@@ -94,13 +120,17 @@ export function useSession(options: UseSessionOptions = {}) {
     setError(null)
 
     try {
-      if (userId) {
+      if (userId && userEmail) {
         // Authenticated - PostgreSQL
+        // Ensure profile exists first
+        await ensureProfile()
         const session = await persistentChatApi.createSession(userId)
         localStorage.setItem(SESSION_KEY, session.id)
         setSessionId(session.id)
         await loadSessions()
         return session.id
+      } else if (userId && !userEmail) {
+        throw new Error("User email not available")
       } else {
         // Guest - SQLite
         const session = await sessionApi.create()
@@ -114,7 +144,7 @@ export function useSession(options: UseSessionOptions = {}) {
     } finally {
       setIsLoading(false)
     }
-  }, [userId, loadSessions])
+  }, [userId, userEmail, loadSessions, ensureProfile])
 
   // Switch to an existing session
   const switchSession = useCallback((newSessionId: string) => {
