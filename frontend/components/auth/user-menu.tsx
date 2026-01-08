@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
-import { LogOut, User } from "lucide-react"
+import { LogOut, Settings, User } from "lucide-react"
+import Link from "next/link"
 
 export function UserMenu() {
   const { session, isLoading } = useAuth()
@@ -92,9 +93,11 @@ export function UserMenu() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled>
-          <User className="mr-2 h-4 w-4" />
-          <span>Profile</span>
+        <DropdownMenuItem asChild>
+          <Link href="/settings" className="flex cursor-pointer items-center">
+            <Settings className="mr-2 h-4 w-4" />
+            <span>Settings</span>
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">

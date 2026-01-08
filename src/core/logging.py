@@ -46,6 +46,21 @@ def setup_logging(level: str = "INFO") -> logging.Logger:
 logger = setup_logging()
 
 
+def get_logger(name: str = None) -> logging.Logger:
+    """
+    Get a logger instance.
+
+    Args:
+        name: Logger name (used as suffix to 'chattwelve')
+
+    Returns:
+        Logger instance
+    """
+    if name:
+        return logging.getLogger(f"chattwelve.{name}")
+    return logger
+
+
 def log_request(
     session_id: str,
     query: str,

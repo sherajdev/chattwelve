@@ -18,9 +18,12 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
-    # Database
+    # Database - SQLite (for cache, legacy)
     DATABASE_URL: str = "sqlite+aiosqlite:///./chattwelve.db"
     DATABASE_PATH: str = "./chattwelve.db"
+
+    # Database - PostgreSQL (Supabase, for sessions, messages, profiles)
+    POSTGRES_URL: Optional[str] = None  # e.g., postgresql://user:pass@host:5432/db
 
     # MCP Server (set via MCP_SERVER_URL environment variable)
     MCP_SERVER_URL: str = "http://localhost:3847"

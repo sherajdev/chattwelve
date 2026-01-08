@@ -209,3 +209,54 @@ class PromptDeleteResponse(BaseModel):
 
     message: str = Field(..., description="Success message")
     prompt_id: str = Field(..., description="Deleted prompt ID")
+
+
+class ProfileResponse(BaseModel):
+    """User profile response."""
+
+    id: str = Field(..., description="User ID (from BetterAuth)")
+    email: str = Field(..., description="User email")
+    display_name: Optional[str] = Field(None, description="Display name")
+    avatar_url: Optional[str] = Field(None, description="Avatar URL")
+    preferences: dict = Field(default_factory=dict, description="User preferences")
+    created_at: str = Field(..., description="ISO 8601 creation timestamp")
+    updated_at: str = Field(..., description="ISO 8601 update timestamp")
+
+
+class ChatSessionResponse(BaseModel):
+    """Chat session response with messages."""
+
+    id: str = Field(..., description="Session UUID")
+    user_id: str = Field(..., description="User ID")
+    title: str = Field(..., description="Session title")
+    created_at: str = Field(..., description="ISO 8601 creation timestamp")
+    updated_at: str = Field(..., description="ISO 8601 update timestamp")
+    last_message_at: str = Field(..., description="ISO 8601 timestamp of last message")
+    message_count: int = Field(0, description="Number of messages")
+
+
+class ChatSessionListResponse(BaseModel):
+    """List of chat sessions response."""
+
+    sessions: List[ChatSessionResponse] = Field(..., description="List of chat sessions")
+    count: int = Field(..., description="Total number of sessions")
+
+
+class ChatMessageResponse(BaseModel):
+    """Chat message response."""
+
+    id: str = Field(..., description="Message UUID")
+    session_id: str = Field(..., description="Session UUID")
+    role: str = Field(..., description="Message role: user, assistant, or system")
+    content: str = Field(..., description="Message content")
+    model: Optional[str] = Field(None, description="AI model used")
+    metadata: dict = Field(default_factory=dict, description="Message metadata")
+    created_at: str = Field(..., description="ISO 8601 creation timestamp")
+
+
+class ChatMessagesResponse(BaseModel):
+    """List of chat messages response."""
+
+    messages: List[ChatMessageResponse] = Field(..., description="List of messages")
+    count: int = Field(..., description="Total number of messages")
+    session_id: str = Field(..., description="Session UUID")

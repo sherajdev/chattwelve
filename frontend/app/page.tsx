@@ -8,12 +8,22 @@ import { ChatInput } from "@/components/chat-input"
 import { PromptModal } from "@/components/prompt-modal"
 import { useSession } from "@/hooks/use-session"
 import { useAuth } from "@/components/auth/auth-provider"
-import { chatApi, promptsApi, healthApi, sessionApi } from "@/lib/api"
+import { chatApi, promptsApi, healthApi, persistentChatApi } from "@/lib/api"
 import type { Message, ChatSession, SystemPrompt, HealthStatus } from "@/lib/types"
 
 export default function Home() {
   const { session: authSession } = useAuth()
-  const { sessionId, isLoading: sessionLoading, createNewSession } = useSession()
+  const userId = authSession?.user?.id
+  const {
+    sessionId,
+    sessions: hookSessions,
+    isLoading: sessionLoading,
+    error: sessionError,
+    createNewSession,
+    switchSession,
+    deleteSession,
+    refreshSessions,
+  } = useSession({ userId })
 
   // State
   const [messages, setMessages] = useState<Message[]>([])
@@ -29,33 +39,27 @@ export default function Home() {
     ai: "down",
   })
 
-  // Load user's sessions and prompts when authenticated
+  // Sync sessions from hook to local state
   useEffect(() => {
-    const userId = authSession?.user?.id
     if (!userId) return
 
-    const loadUserData = async () => {
-      try {
-        // Load user's sessions
-        const sessionsResponse = await sessionApi.listByUser(userId)
-        const loadedSessions: ChatSession[] = sessionsResponse.sessions.map((s) => ({
-          id: s.session_id,
-          title: s.title || "New Chat",
-          createdAt: new Date(s.created_at),
-          lastMessageAt: new Date(s.last_activity),
-        }))
-        setSessions(loadedSessions)
+    // Map hook sessions to ChatSession format
+    const mappedSessions: ChatSession[] = hookSessions.map((s) => ({
+      id: s.id,
+      title: s.title || "New Chat",
+      createdAt: new Date(s.created_at),
+      lastMessageAt: new Date(s.last_message_at),
+    }))
+    setSessions(mappedSessions)
+    // Note: activeSessionId is set by the sessionId sync effect
+  }, [hookSessions, userId])
 
-        // If we have sessions, set the most recent one as active
-        if (loadedSessions.length > 0 && !activeSessionId) {
-          setActiveSessionId(loadedSessions[0].id)
-        }
-      } catch (error) {
-        console.error("Failed to load sessions:", error)
-      }
+  // Load prompts when authenticated
+  useEffect(() => {
+    if (!userId) return
 
+    const loadPrompts = async () => {
       try {
-        // Load prompts (system defaults + user's custom prompts)
         const promptsResponse = await promptsApi.list(userId)
         setPrompts(
           promptsResponse.prompts.map((p) => ({
@@ -73,8 +77,32 @@ export default function Home() {
       }
     }
 
-    loadUserData()
-  }, [authSession?.user?.id])
+    loadPrompts()
+  }, [userId])
+
+  // Load messages when active session changes (for authenticated users)
+  useEffect(() => {
+    if (!userId || !activeSessionId) return
+
+    const loadMessages = async () => {
+      try {
+        const response = await persistentChatApi.getMessages(userId, activeSessionId)
+        const loadedMessages: Message[] = response.messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.created_at),
+          model: m.model,
+        }))
+        setMessages(loadedMessages)
+      } catch (error) {
+        console.error("Failed to load messages:", error)
+        setMessages([])
+      }
+    }
+
+    loadMessages()
+  }, [userId, activeSessionId])
 
   // Check health status on mount and periodically
   useEffect(() => {
@@ -97,69 +125,62 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [])
 
-  // Set active session when session hook provides a session
-  // This handles the case where user has no existing sessions
+  // Sync sessionId from hook to activeSessionId
+  // This ensures we have an active session when the hook provides one
   useEffect(() => {
-    if (sessionId && !activeSessionId && sessions.length === 0) {
+    if (sessionId && !activeSessionId) {
       setActiveSessionId(sessionId)
-      // Add initial session to list if not exists
-      setSessions((prev) => {
-        if (prev.some((s) => s.id === sessionId)) return prev
-        return [
-          {
-            id: sessionId,
-            title: "New Chat",
-            createdAt: new Date(),
-            lastMessageAt: new Date(),
-          },
-          ...prev,
-        ]
-      })
     }
-  }, [sessionId, activeSessionId, sessions.length])
+  }, [sessionId, activeSessionId])
 
   // Handlers
   const handleNewChat = useCallback(async () => {
     try {
-      // Pass authenticated user ID to associate session with user
-      const userId = authSession?.user?.id
-      const newSessionId = await createNewSession(userId)
-      const newSession: ChatSession = {
-        id: newSessionId,
-        title: "New Chat",
-        createdAt: new Date(),
-        lastMessageAt: new Date(),
-      }
-      setSessions((prev) => [newSession, ...prev])
+      const newSessionId = await createNewSession()
       setActiveSessionId(newSessionId)
       setMessages([])
+      // Sessions list will be refreshed by the hook
     } catch (error) {
       console.error("Failed to create new chat:", error)
     }
-  }, [createNewSession, authSession])
+  }, [createNewSession])
 
   const handleSelectSession = useCallback((id: string) => {
+    switchSession(id)
     setActiveSessionId(id)
-    // In a full implementation, load messages for this session from storage/backend
-    setMessages([])
-  }, [])
+    // Messages will be loaded by the activeSessionId effect
+  }, [switchSession])
 
   const handleDeleteSession = useCallback(
-    (id: string) => {
-      setSessions((prev) => prev.filter((s) => s.id !== id))
-      if (activeSessionId === id) {
-        setActiveSessionId(null)
-        setMessages([])
+    async (id: string) => {
+      try {
+        await deleteSession(id)
+        if (activeSessionId === id) {
+          setActiveSessionId(null)
+          setMessages([])
+        }
+        // Sessions list will be refreshed by the hook
+      } catch (error) {
+        console.error("Failed to delete session:", error)
       }
     },
-    [activeSessionId]
+    [activeSessionId, deleteSession]
   )
 
   const handleSendMessage = useCallback(
     async (content: string) => {
-      if (!activeSessionId) {
-        console.error("No active session")
-        return
+      let currentSessionId = activeSessionId
+
+      // Auto-create session if none exists
+      if (!currentSessionId) {
+        try {
+          console.log("No active session, creating one...")
+          currentSessionId = await createNewSession()
+          setActiveSessionId(currentSessionId)
+        } catch (error) {
+          console.error("Failed to create session:", error)
+          return
+        }
       }
 
       // Add user message
@@ -174,7 +195,7 @@ export default function Home() {
       // Update session title if it's the first message
       setSessions((prev) =>
         prev.map((s) => {
-          if (s.id === activeSessionId && s.title === "New Chat") {
+          if (s.id === currentSessionId && s.title === "New Chat") {
             return {
               ...s,
               title: content.slice(0, 30) + (content.length > 30 ? "..." : ""),
@@ -191,7 +212,7 @@ export default function Home() {
         // Use streaming API
         let fullResponse = ""
 
-        const abort = chatApi.stream(activeSessionId, content, {
+        const abort = chatApi.stream(currentSessionId, content, {
           onProcessing: () => {
             // Could show a "thinking" indicator
           },
@@ -253,7 +274,7 @@ export default function Home() {
           onDone: () => {
             setIsStreaming(false)
           },
-        })
+        }, userId)
 
         // Store abort function if needed for cancellation
       } catch (error) {
@@ -270,7 +291,7 @@ export default function Home() {
         setIsStreaming(false)
       }
     },
-    [activeSessionId, currentModel]
+    [activeSessionId, currentModel, userId, createNewSession]
   )
 
   const handleSuggestionClick = useCallback(
@@ -307,9 +328,8 @@ export default function Home() {
 
   const handleCreatePrompt = useCallback(async (name: string, content: string) => {
     try {
-      const userId = authSession?.user?.id
-      const response = await promptsApi.create({ 
-        name, 
+      const response = await promptsApi.create({
+        name,
         prompt: content,
         user_id: userId  // Associate prompt with current user
       })
@@ -325,7 +345,7 @@ export default function Home() {
     } catch (error) {
       console.error("Failed to create prompt:", error)
     }
-  }, [authSession?.user?.id])
+  }, [userId])
 
   const handleUpdatePrompt = useCallback(async (id: string, name: string, content: string) => {
     try {
@@ -349,6 +369,21 @@ export default function Home() {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="text-muted-foreground">Initializing...</div>
+      </div>
+    )
+  }
+
+  // Show error state if session initialization failed
+  if (sessionError) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background">
+        <div className="text-destructive">Failed to initialize session: {sessionError}</div>
+        <button
+          onClick={() => window.location.reload()}
+          className="rounded-md bg-primary px-4 py-2 text-primary-foreground"
+        >
+          Retry
+        </button>
       </div>
     )
   }

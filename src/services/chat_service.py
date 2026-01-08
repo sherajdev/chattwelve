@@ -10,6 +10,8 @@ from src.core.config import settings
 from src.core.logging import logger, log_request
 from src.database.session_repo import session_repo, Session
 from src.database.cache_repo import cache_repo
+from src.database.pg_session_repo import PgSessionRepository
+from src.database.pg_message_repo import PgMessageRepository
 from src.services.mcp_client import mcp_client, MCPToolResult
 from src.services.query_processor import query_processor, QueryIntent, ParsedQuery
 from src.services.ai_agent_service import ai_agent_service
@@ -18,6 +20,26 @@ from src.api.schemas.responses import (
     PriceData, QuoteData, HistoricalData, CandleData,
     IndicatorData, ConversionData
 )
+
+# PostgreSQL repositories (initialized lazily)
+_pg_session_repo: Optional[PgSessionRepository] = None
+_pg_message_repo: Optional[PgMessageRepository] = None
+
+
+def get_pg_session_repo() -> PgSessionRepository:
+    """Get PostgreSQL session repository (lazy init)."""
+    global _pg_session_repo
+    if _pg_session_repo is None:
+        _pg_session_repo = PgSessionRepository()
+    return _pg_session_repo
+
+
+def get_pg_message_repo() -> PgMessageRepository:
+    """Get PostgreSQL message repository (lazy init)."""
+    global _pg_message_repo
+    if _pg_message_repo is None:
+        _pg_message_repo = PgMessageRepository()
+    return _pg_message_repo
 
 
 class ChatService:
@@ -32,7 +54,8 @@ class ChatService:
     async def process_chat(
         self,
         session_id: str,
-        query: str
+        query: str,
+        user_id: Optional[str] = None
     ) -> Tuple[Optional[ChatResponse], Optional[ErrorResponse]]:
         """
         Process a chat query.
@@ -40,6 +63,7 @@ class ChatService:
         Args:
             session_id: Session ID for context
             query: Natural language query
+            user_id: Optional authenticated user ID for PostgreSQL storage
 
         Returns:
             Tuple of (ChatResponse, None) on success or (None, ErrorResponse) on error
@@ -49,7 +73,7 @@ class ChatService:
 
         # Use AI agent mode if enabled
         if settings.USE_AI_AGENT:
-            return await self._process_with_ai_agent(session_id, query)
+            return await self._process_with_ai_agent(session_id, query, user_id)
 
         # Validate session (with expiry check)
         session = await self.session_repo.get(session_id, check_expiry=True)
@@ -126,7 +150,8 @@ class ChatService:
     async def _process_with_ai_agent(
         self,
         session_id: str,
-        query: str
+        query: str,
+        user_id: Optional[str] = None
     ) -> Tuple[Optional[ChatResponse], Optional[ErrorResponse]]:
         """
         Process chat query using AI agent with tool calling.
@@ -134,50 +159,103 @@ class ChatService:
         Args:
             session_id: Session ID for context
             query: Natural language query
+            user_id: Optional authenticated user ID for PostgreSQL storage
 
         Returns:
             Tuple of (ChatResponse, None) on success or (None, ErrorResponse) on error
         """
-        # Validate session (with expiry check)
-        session = await self.session_repo.get(session_id, check_expiry=True)
-        if not session:
-            # Check if session exists but is expired
-            session_raw = await self.session_repo.get(session_id, check_expiry=False)
-            if session_raw and self.session_repo.is_expired(session_raw):
-                return None, ErrorResponse(
-                    answer="Your session has expired. Please create a new session to continue.",
-                    error=ErrorDetail(
-                        code="SESSION_EXPIRED",
-                        message=f"Session {session_id} has expired due to inactivity"
-                    )
-                )
-            return None, ErrorResponse(
-                answer="Session not found. Please create a new session.",
-                error=ErrorDetail(
-                    code="SESSION_NOT_FOUND",
-                    message=f"Session {session_id} does not exist"
-                )
-            )
+        session_context = []
 
-        # Check rate limit
-        try:
-            count, seconds_until_reset = await self.session_repo.increment_request_count(session_id)
-            if count > settings.RATE_LIMIT_REQUESTS:
+        # If user_id provided, use PostgreSQL sessions
+        if user_id:
+            try:
+                pg_session_repo = get_pg_session_repo()
+                pg_message_repo = get_pg_message_repo()
+
+                # Validate PostgreSQL session exists
+                pg_session = await pg_session_repo.get(session_id)
+                if not pg_session:
+                    return None, ErrorResponse(
+                        answer="Session not found. Please create a new session.",
+                        error=ErrorDetail(
+                            code="SESSION_NOT_FOUND",
+                            message=f"Session {session_id} does not exist"
+                        )
+                    )
+
+                # Verify session belongs to user
+                if pg_session.user_id != user_id:
+                    return None, ErrorResponse(
+                        answer="You don't have access to this session.",
+                        error=ErrorDetail(
+                            code="SESSION_ACCESS_DENIED",
+                            message="Session does not belong to this user"
+                        )
+                    )
+
+                # Load recent messages as context
+                recent_messages = await pg_message_repo.get_recent_messages(session_id, limit=10)
+                session_context = [
+                    {"role": m.role, "content": m.content[:200]}
+                    for m in recent_messages
+                ]
+
+                # Save user message to PostgreSQL
+                await pg_message_repo.add(
+                    session_id=session_id,
+                    role="user",
+                    content=query
+                )
+
+            except Exception as e:
+                logger.error(f"PostgreSQL session error: {e}")
+                # Fall through to SQLite if PostgreSQL fails
+                user_id = None
+
+        # Fall back to SQLite sessions for guests or if PostgreSQL failed
+        if not user_id:
+            # Validate session (with expiry check)
+            session = await self.session_repo.get(session_id, check_expiry=True)
+            if not session:
+                # Check if session exists but is expired
+                session_raw = await self.session_repo.get(session_id, check_expiry=False)
+                if session_raw and self.session_repo.is_expired(session_raw):
+                    return None, ErrorResponse(
+                        answer="Your session has expired. Please create a new session to continue.",
+                        error=ErrorDetail(
+                            code="SESSION_EXPIRED",
+                            message=f"Session {session_id} has expired due to inactivity"
+                        )
+                    )
                 return None, ErrorResponse(
-                    answer=f"You've made too many requests. Please wait {seconds_until_reset} seconds before trying again.",
+                    answer="Session not found. Please create a new session.",
                     error=ErrorDetail(
-                        code="RATE_LIMITED",
-                        message=f"Rate limit exceeded: {count}/{settings.RATE_LIMIT_REQUESTS} requests"
+                        code="SESSION_NOT_FOUND",
+                        message=f"Session {session_id} does not exist"
                     )
                 )
-        except Exception as e:
-            logger.error(f"Rate limit check failed: {e}")
+
+            # Check rate limit (only for SQLite sessions)
+            try:
+                count, seconds_until_reset = await self.session_repo.increment_request_count(session_id)
+                if count > settings.RATE_LIMIT_REQUESTS:
+                    return None, ErrorResponse(
+                        answer=f"You've made too many requests. Please wait {seconds_until_reset} seconds before trying again.",
+                        error=ErrorDetail(
+                            code="RATE_LIMITED",
+                            message=f"Rate limit exceeded: {count}/{settings.RATE_LIMIT_REQUESTS} requests"
+                        )
+                    )
+            except Exception as e:
+                logger.error(f"Rate limit check failed: {e}")
+
+            session_context = session.context
 
         # Run the AI agent
         try:
             result = await ai_agent_service.run_agent(
                 user_query=query,
-                session_context={"context": session.context}
+                session_context={"context": session_context}
             )
 
             if not result.success:
@@ -189,16 +267,44 @@ class ChatService:
                     )
                 )
 
-            # Update session context
             now = datetime.utcnow()
-            context_entry = {
-                "query": query,
-                "response": result.content[:200],  # Store summary
-                "tools_used": result.tools_used,
-                "timestamp": now.isoformat()
-            }
-            new_context = session.context[-9:] + [context_entry]
-            await self.session_repo.update_context(session_id, new_context)
+
+            # Save response based on storage type
+            if user_id:
+                # Save assistant message to PostgreSQL
+                try:
+                    pg_message_repo = get_pg_message_repo()
+                    pg_session_repo = get_pg_session_repo()
+
+                    await pg_message_repo.add(
+                        session_id=session_id,
+                        role="assistant",
+                        content=result.content,
+                        model=result.model_used,
+                        metadata={
+                            "tools_used": result.tools_used,
+                            "used_fallback": result.used_fallback
+                        }
+                    )
+
+                    # Update session title if it's still default
+                    pg_session = await pg_session_repo.get(session_id)
+                    if pg_session and pg_session.title == "New Chat":
+                        new_title = query[:50] + ("..." if len(query) > 50 else "")
+                        await pg_session_repo.update_title(session_id, new_title)
+
+                except Exception as e:
+                    logger.error(f"Failed to save message to PostgreSQL: {e}")
+            else:
+                # Update SQLite session context
+                context_entry = {
+                    "query": query,
+                    "response": result.content[:200],  # Store summary
+                    "tools_used": result.tools_used,
+                    "timestamp": now.isoformat()
+                }
+                new_context = session_context[-9:] + [context_entry]
+                await self.session_repo.update_context(session_id, new_context)
 
             # Return AI agent response
             return ChatResponse(

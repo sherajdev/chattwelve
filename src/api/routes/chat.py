@@ -20,7 +20,8 @@ router = APIRouter(prefix="/api/chat", tags=["Chat"])
 
 async def generate_sse_events(
     session_id: str,
-    query: str
+    query: str,
+    user_id: str = None
 ) -> AsyncGenerator[str, None]:
     """
     Generate Server-Sent Events for chat response streaming.
@@ -30,6 +31,7 @@ async def generate_sse_events(
     Args:
         session_id: Session ID for the request
         query: Natural language query
+        user_id: Optional authenticated user ID for PostgreSQL storage
 
     Yields:
         SSE-formatted event strings
@@ -42,7 +44,8 @@ async def generate_sse_events(
         # Process the chat request
         response, error = await chat_service.process_chat(
             session_id=session_id,
-            query=query
+            query=query,
+            user_id=user_id
         )
 
         if error:
@@ -91,7 +94,8 @@ async def chat(request: ChatRequest):
     try:
         response, error = await chat_service.process_chat(
             session_id=request.session_id,
-            query=request.query
+            query=request.query,
+            user_id=request.user_id
         )
 
         if error:
@@ -157,7 +161,7 @@ async def chat_stream(request: ChatRequest):
     - error: Error occurred
     """
     return StreamingResponse(
-        generate_sse_events(request.session_id, request.query),
+        generate_sse_events(request.session_id, request.query, request.user_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

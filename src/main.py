@@ -12,11 +12,13 @@ from fastapi.responses import JSONResponse
 from src.core.config import settings
 from src.core.logging import logger, log_response_time
 from src.database.init_db import init_database
+from src.core.postgres import init_postgres_pool, close_postgres_pool, health_check as pg_health_check
 from src.api.schemas.responses import HealthResponse, MCPHealthResponse, AIHealthResponse
 from src.services.ai_service import ai_service
 from src.api.routes.session import router as session_router
 from src.api.routes.chat import router as chat_router
 from src.api.routes.prompts import router as prompts_router
+from src.api.routes.profile import router as profile_router
 
 
 @asynccontextmanager
@@ -24,13 +26,30 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+
+    # Initialize SQLite (for cache, legacy support)
     await init_database()
+
+    # Initialize PostgreSQL (for sessions, messages, profiles)
+    if settings.POSTGRES_URL:
+        try:
+            await init_postgres_pool()
+            logger.info("PostgreSQL connection pool initialized")
+        except Exception as e:
+            logger.warning(f"PostgreSQL initialization failed: {e}. Falling back to SQLite.")
+    else:
+        logger.info("POSTGRES_URL not configured, using SQLite only")
+
     logger.info("Application startup complete")
 
     yield
 
     # Shutdown
     logger.info("Application shutting down")
+
+    # Close PostgreSQL pool
+    if settings.POSTGRES_URL:
+        await close_postgres_pool()
 
 
 # Create FastAPI application
@@ -54,6 +73,7 @@ app.add_middleware(
 app.include_router(session_router)
 app.include_router(chat_router)
 app.include_router(prompts_router)
+app.include_router(profile_router)
 
 
 @app.middleware("http")

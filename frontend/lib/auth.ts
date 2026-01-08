@@ -6,6 +6,37 @@
 import { betterAuth } from "better-auth"
 import { Pool } from "pg"
 
+// Backend API URL for profile sync
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+
+/**
+ * Sync user profile with backend PostgreSQL
+ * Creates/updates profile when user signs up or logs in
+ */
+async function syncUserProfile(user: { id: string; email: string; name?: string | null; image?: string | null }) {
+  try {
+    const response = await fetch(`${API_URL}/api/profile/sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: user.id,
+        email: user.email,
+        display_name: user.name || null,
+        avatar_url: user.image || null,
+      }),
+    })
+
+    if (!response.ok) {
+      console.error(`Failed to sync profile: ${response.status} ${response.statusText}`)
+    }
+  } catch (error) {
+    // Log but don't fail auth - profile sync is not critical
+    console.error("Profile sync error:", error)
+  }
+}
+
 export const auth = betterAuth({
   // Use Supabase PostgreSQL
   database: new Pool({
@@ -32,6 +63,14 @@ export const auth = betterAuth({
   // Callbacks
   callbacks: {
     session: async ({ session, user }) => {
+      // Sync profile on session creation/update
+      await syncUserProfile({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        image: user.image,
+      })
+
       // Add user id to session
       return {
         ...session,

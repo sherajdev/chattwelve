@@ -84,6 +84,50 @@ export interface HealthStatus {
   ai: 'healthy' | 'degraded' | 'down'
 }
 
+// Profile types (PostgreSQL)
+export interface ProfileResponse {
+  id: string
+  email: string
+  display_name?: string
+  avatar_url?: string
+  preferences: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+// Chat session types (PostgreSQL - persistent)
+export interface ChatSessionResponse {
+  id: string
+  user_id: string
+  title: string
+  created_at: string
+  updated_at: string
+  last_message_at: string
+  message_count: number
+}
+
+export interface ChatSessionListResponse {
+  sessions: ChatSessionResponse[]
+  count: number
+}
+
+// Chat message types (PostgreSQL - persistent)
+export interface ChatMessageResponse {
+  id: string
+  session_id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  model?: string
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+export interface ChatMessagesResponse {
+  messages: ChatMessageResponse[]
+  count: number
+  session_id: string
+}
+
 // API Error class
 export class ApiError extends Error {
   constructor(
@@ -153,10 +197,10 @@ export const sessionApi = {
 
 // Chat API
 export const chatApi = {
-  send: async (sessionId: string, query: string): Promise<ChatResponse> => {
+  send: async (sessionId: string, query: string, userId?: string): Promise<ChatResponse> => {
     return request<ChatResponse>('/api/chat', {
       method: 'POST',
-      body: JSON.stringify({ session_id: sessionId, query }),
+      body: JSON.stringify({ session_id: sessionId, query, user_id: userId }),
     })
   },
 
@@ -170,7 +214,8 @@ export const chatApi = {
       onComplete?: (response: ChatResponse) => void
       onError?: (error: string) => void
       onDone?: () => void
-    }
+    },
+    userId?: string
   ): (() => void) => {
     const controller = new AbortController()
 
@@ -179,7 +224,7 @@ export const chatApi = {
         const response = await fetch(`${API_URL}/api/chat/stream`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: sessionId, query }),
+          body: JSON.stringify({ session_id: sessionId, query, user_id: userId }),
           signal: controller.signal,
         })
 
@@ -332,5 +377,88 @@ export const healthApi = {
       mcp: mcpHealth.status === 'fulfilled' && mcpHealth.value.connected ? 'healthy' : 'down',
       ai: mapStatus(aiHealth),
     }
+  },
+}
+
+// Profile API (PostgreSQL)
+export const profileApi = {
+  get: async (userId: string): Promise<ProfileResponse> => {
+    return request<ProfileResponse>(`/api/profile/${userId}`)
+  },
+
+  update: async (
+    userId: string,
+    data: {
+      display_name?: string
+      avatar_url?: string
+      preferences?: Record<string, unknown>
+    }
+  ): Promise<ProfileResponse> => {
+    return request<ProfileResponse>(`/api/profile/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  updatePreferences: async (
+    userId: string,
+    preferences: Record<string, unknown>
+  ): Promise<{ message: string }> => {
+    return request(`/api/profile/${userId}/preferences`, {
+      method: 'PATCH',
+      body: JSON.stringify(preferences),
+    })
+  },
+
+  sync: async (data: {
+    user_id: string
+    email: string
+    display_name?: string | null
+    avatar_url?: string | null
+  }): Promise<ProfileResponse> => {
+    return request<ProfileResponse>('/api/profile/sync', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+}
+
+// Persistent Chat API (PostgreSQL)
+export const persistentChatApi = {
+  // Chat sessions
+  createSession: async (
+    userId: string,
+    title: string = 'New Chat',
+    metadata?: Record<string, unknown>
+  ): Promise<ChatSessionResponse> => {
+    return request<ChatSessionResponse>(`/api/profile/${userId}/sessions`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, title, metadata }),
+    })
+  },
+
+  listSessions: async (userId: string, limit: number = 50): Promise<ChatSessionListResponse> => {
+    return request<ChatSessionListResponse>(`/api/profile/${userId}/sessions?limit=${limit}`)
+  },
+
+  deleteSession: async (
+    userId: string,
+    sessionId: string
+  ): Promise<{ message: string; session_id: string }> => {
+    return request(`/api/profile/${userId}/sessions/${sessionId}`, {
+      method: 'DELETE',
+    })
+  },
+
+  // Chat messages
+  getMessages: async (
+    userId: string,
+    sessionId: string,
+    limit: number = 100,
+    offset: number = 0
+  ): Promise<ChatMessagesResponse> => {
+    return request<ChatMessagesResponse>(
+      `/api/profile/${userId}/sessions/${sessionId}/messages?limit=${limit}&offset=${offset}`
+    )
   },
 }

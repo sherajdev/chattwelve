@@ -21,6 +21,10 @@ class ChatRequest(BaseModel):
         min_length=1,
         max_length=5000
     )
+    user_id: Optional[str] = Field(
+        default=None,
+        description="Optional authenticated user ID for PostgreSQL session storage"
+    )
 
     @field_validator("query")
     @classmethod
@@ -126,3 +130,61 @@ class UpdatePromptRequest(BaseModel):
         if v is not None and not v.strip():
             raise ValueError("Field cannot be empty or whitespace only")
         return v.strip() if v else None
+
+
+class CreateProfileRequest(BaseModel):
+    """Request schema for creating a user profile."""
+
+    user_id: str = Field(
+        ...,
+        description="BetterAuth user ID"
+    )
+    email: str = Field(
+        ...,
+        description="User email"
+    )
+    display_name: Optional[str] = Field(
+        default=None,
+        description="Display name",
+        max_length=100
+    )
+    avatar_url: Optional[str] = Field(
+        default=None,
+        description="Avatar URL"
+    )
+
+
+class UpdateProfileRequest(BaseModel):
+    """Request schema for updating a user profile."""
+
+    display_name: Optional[str] = Field(
+        default=None,
+        description="New display name",
+        max_length=100
+    )
+    avatar_url: Optional[str] = Field(
+        default=None,
+        description="New avatar URL"
+    )
+    preferences: Optional[dict] = Field(
+        default=None,
+        description="User preferences to update/merge"
+    )
+
+
+class CreateChatSessionRequest(BaseModel):
+    """Request schema for creating a chat session (PostgreSQL)."""
+
+    user_id: str = Field(
+        ...,
+        description="Authenticated user ID"
+    )
+    title: Optional[str] = Field(
+        default="New Chat",
+        description="Session title",
+        max_length=200
+    )
+    metadata: Optional[dict] = Field(
+        default=None,
+        description="Optional metadata"
+    )
